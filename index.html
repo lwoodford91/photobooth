@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen" />
+  <meta name="apple-mobile-web-app-title" content="PhotoBooth" />
+  <title>PhotoBooth — iPad Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ATTRACT SCREEN -->
+  <div id="screen-attract" class="screen active">
+    <div class="attract-bg">
+      <div class="bokeh-orb orb1"></div>
+      <div class="bokeh-orb orb2"></div>
+      <div class="bokeh-orb orb3"></div>
+      <div class="bokeh-orb orb4"></div>
+      <div class="film-grain"></div>
+    </div>
+    <div class="attract-content">
+      <div class="brand-badge">✦ LIVE EVENT ✦</div>
+      <h1 class="attract-title" id="event-title-display">PhotoBooth<br/><em>Studio</em></h1>
+      <p class="attract-sub" id="event-subtitle-display">Tap anywhere to begin your experience</p>
+      <div class="attract-pulse">
+        <div class="pulse-ring"></div>
+        <div class="pulse-ring delay1"></div>
+        <div class="pulse-ring delay2"></div>
+        <span class="pulse-icon">📸</span>
+      </div>
+    </div>
+    <button class="settings-btn" id="open-settings" title="Settings">⚙</button>
+  </div>
+
+  <!-- CHOOSE MODE SCREEN -->
+  <div id="screen-mode" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" data-target="screen-attract">←</button>
+      <h2>Choose Your Mode</h2>
+    </div>
+    <div class="mode-grid">
+      <button class="mode-card" data-mode="single">
+        <div class="mode-icon">🖼</div>
+        <div class="mode-label">Single Shot</div>
+        <div class="mode-desc">One perfect photo</div>
+      </button>
+      <button class="mode-card" data-mode="strip">
+        <div class="mode-icon">🎞</div>
+        <div class="mode-label">Photo Strip</div>
+        <div class="mode-desc">3 photos in a strip</div>
+      </button>
+      <button class="mode-card" data-mode="gif">
+        <div class="mode-icon">🌀</div>
+        <div class="mode-label">GIF Burst</div>
+        <div class="mode-desc">4 rapid shots → GIF</div>
+      </button>
+      <button class="mode-card" data-mode="boomerang">
+        <div class="mode-icon">↩</div>
+        <div class="mode-label">Boomerang</div>
+        <div class="mode-desc">Loop animation</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- FILTER SELECT SCREEN -->
+  <div id="screen-filter" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" data-target="screen-mode">←</button>
+      <h2>Choose a Filter</h2>
+    </div>
+    <div class="filter-preview-wrap">
+      <video id="filter-preview-video" autoplay muted playsinline></video>
+      <canvas id="filter-preview-canvas"></canvas>
+    </div>
+    <div class="filter-list">
+      <button class="filter-btn active" data-filter="none"><span>Original</span></button>
+      <button class="filter-btn" data-filter="bw"><span>B&W</span></button>
+      <button class="filter-btn" data-filter="sepia"><span>Sepia</span></button>
+      <button class="filter-btn" data-filter="vivid"><span>Vivid</span></button>
+      <button class="filter-btn" data-filter="glam"><span>✨ Glam</span></button>
+      <button class="filter-btn" data-filter="cool"><span>Cool</span></button>
+      <button class="filter-btn" data-filter="warm"><span>Warm</span></button>
+      <button class="filter-btn" data-filter="vintage"><span>Vintage</span></button>
+    </div>
+    <button class="primary-btn wide" id="go-to-camera">Start Camera →</button>
+  </div>
+
+  <!-- CAMERA SCREEN -->
+  <div id="screen-camera" class="screen camera-screen">
+    <div class="camera-topbar">
+      <button class="back-btn light" data-target="screen-filter">←</button>
+      <div class="mode-indicator" id="mode-label-display">Single Shot</div>
+      <button class="flip-btn" id="flip-camera">🔄</button>
+    </div>
+    <div class="camera-viewport">
+      <video id="camera-video" autoplay muted playsinline></video>
+      <canvas id="camera-canvas"></canvas>
+      <div class="countdown-overlay" id="countdown-overlay">
+        <span id="countdown-number"></span>
+      </div>
+      <div class="shot-flash" id="shot-flash"></div>
+      <div class="frame-overlay" id="frame-overlay"></div>
+    </div>
+    <div class="camera-controls">
+      <div class="shot-counter" id="shot-counter"></div>
+      <button class="shutter-btn" id="shutter-btn">
+        <span class="shutter-inner"></span>
+      </button>
+      <div class="timer-toggle">
+        <button class="timer-opt active" data-seconds="3">3s</button>
+        <button class="timer-opt" data-seconds="5">5s</button>
+        <button class="timer-opt" data-seconds="10">10s</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVIEW SCREEN -->
+  <div id="screen-review" class="screen review-screen">
+    <div class="review-header">
+      <h2>Looking good! 🎉</h2>
+    </div>
+    <div class="review-canvas-wrap">
+      <canvas id="review-canvas"></canvas>
+    </div>
+    <div class="review-actions">
+      <button class="secondary-btn" id="retake-btn">↺ Retake</button>
+      <button class="primary-btn" id="save-btn">💾 Save Photo</button>
+      <button class="primary-btn accent" id="share-btn">⬆ Share</button>
+    </div>
+    <div class="share-options hidden" id="share-options">
+      <p class="share-label">Share via:</p>
+      <div class="share-row">
+        <button class="share-icon-btn" id="download-btn">⬇<span>Download</span></button>
+        <button class="share-icon-btn" id="email-btn">✉<span>Email QR</span></button>
+        <button class="share-icon-btn" id="native-share-btn">↗<span>Share</span></button>
+      </div>
+    </div>
+    <div class="qr-wrap hidden" id="qr-wrap">
+      <p>Scan to get your photo:</p>
+      <canvas id="qr-canvas"></canvas>
+      <button class="small-btn" id="close-qr">Close</button>
+    </div>
+    <button class="restart-btn" id="restart-btn">Start Over</button>
+  </div>
+
+  <!-- GALLERY SCREEN -->
+  <div id="screen-gallery" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" data-target="screen-attract">←</button>
+      <h2>Gallery</h2>
+      <button class="clear-btn" id="clear-gallery">Clear All</button>
+    </div>
+    <div class="gallery-grid" id="gallery-grid">
+      <div class="gallery-empty" id="gallery-empty">No photos yet. Start shooting! 📸</div>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Event Settings</h3>
+        <button class="close-modal" id="close-settings">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="setting-row">
+          <span>Event Name</span>
+          <input type="text" id="setting-event-name" placeholder="My Awesome Event" />
+        </label>
+        <label class="setting-row">
+          <span>Tagline</span>
+          <input type="text" id="setting-tagline" placeholder="Tap anywhere to begin" />
+        </label>
+        <label class="setting-row">
+          <span>Primary Color</span>
+          <input type="color" id="setting-color" value="#ff4d6d" />
+        </label>
+        <label class="setting-row">
+          <span>Frame Style</span>
+          <select id="setting-frame">
+            <option value="none">None</option>
+            <option value="rounded">Rounded White</option>
+            <option value="film">Film Strip</option>
+            <option value="polaroid">Polaroid</option>
+            <option value="neon">Neon Glow</option>
+          </select>
+        </label>
+        <label class="setting-row">
+          <span>Overlay Text</span>
+          <input type="text" id="setting-overlay-text" placeholder="e.g. #MyEvent2025" />
+        </label>
+        <label class="setting-row toggle-row">
+          <span>Show Gallery Button</span>
+          <label class="toggle">
+            <input type="checkbox" id="setting-show-gallery" checked />
+            <span class="toggle-slider"></span>
+          </label>
+        </label>
+        <label class="setting-row toggle-row">
+          <span>Mirror Front Camera</span>
+          <label class="toggle">
+            <input type="checkbox" id="setting-mirror" checked />
+            <span class="toggle-slider"></span>
+          </label>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="primary-btn wide" id="save-settings">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GALLERY LIGHTBOX -->
+  <div id="lightbox" class="modal hidden">
+    <div class="modal-backdrop" id="lightbox-backdrop"></div>
+    <div class="lightbox-box">
+      <button class="close-modal" id="close-lightbox">✕</button>
+      <img id="lightbox-img" src="" alt="Photo" />
+      <button class="small-btn" id="lightbox-download">⬇ Download</button>
+    </div>
+  </div>
+
+  <!-- GALLERY NAV BUTTON -->
+  <button class="gallery-fab" id="gallery-fab">🖼 Gallery</button>
+
+  <script src="js/filters.js"></script>
+  <script src="js/gif.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
