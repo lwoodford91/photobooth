@@ -207,9 +207,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
       </div>
 
     </div>
-    <button class="btn-p gm-start" onclick="startGuestSession()">Start →</button>
+    <button class="btn-p gm-start" onclick="event.stopPropagation();startGuestSession()">Start →</button>
   </div>
-  <button class="gallery-btn" onclick="openAttractGallery()">🖼 Gallery</button>
+  <button class="gallery-btn" onclick="event.stopPropagation();openAttractGallery()">🖼 Gallery</button>
   <button class="admin-btn" onclick="S_goPin()">Admin</button>
 </div>
 
@@ -349,6 +349,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
       <div class="cfg-card">
         <div class="cfg-row"><span class="cfg-label">Mirror Front Camera</span><label class="tog"><input type="checkbox" id="a-mirror" checked/><span class="tog-sl"></span></label></div>
         <div class="cfg-row"><span class="cfg-label">Camera Direction</span><select id="a-facing"><option value="user">Front (selfie)</option><option value="environment">Rear</option></select></div>
+        <div class="cfg-row">
+          <span class="cfg-label">Camera Device</span>
+          <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">
+            <select id="a-camera-device" style="background:var(--bg2);border:1px solid var(--border2);color:var(--txt);padding:9px 12px;border-radius:10px;font-family:var(--fs);font-size:13px;outline:none">
+              <option value="">Default (auto-select)</option>
+            </select>
+            <button class="btn-s sm" onclick="refreshCameraList()" style="align-self:flex-start">↻ Refresh Cameras</button>
+            <span style="font-size:11px;color:var(--txt3)">Connect your 3rd-party camera (DSLR, Elgato, OBS virtual) before refreshing</span>
+          </div>
+        </div>
       </div>
     </div>
     <div class="admin-section">
@@ -426,7 +436,7 @@ const S={
   savedTemplate:null,savedTemplateURL:null,
   locked:{mode:'single',filter:'none',timer:3,autoReset:15,facing:'user',mirror:true,
     name:'PhotoBooth Studio',tag:'Tap anywhere to begin',overlay:'',color:'#e8365d',
-    bgId:'solid-black',customBgURL:null,pin:'0000'},
+    bgId:'solid-black',customBgURL:null,pin:'0000',cameraDeviceId:null},
 };
 const MODES=[{id:'single',lbl:'Single Shot',shots:1},{id:'duo',lbl:'Side by Side',shots:2},{id:'strip',lbl:'Photo Strip (3)',shots:3},{id:'strip4',lbl:'Photo Script (4)',shots:4},{id:'grid',lbl:'4-Photo Grid',shots:4}];
 const FILTERS=[{id:'none',lbl:'Original',ico:'✨'},{id:'bw',lbl:'B&W',ico:'⬛'},{id:'sepia',lbl:'Sepia',ico:'🟤'},{id:'vivid',lbl:'Vivid',ico:'🌈'},{id:'glam',lbl:'Glam',ico:'💅'},{id:'cool',lbl:'Cool',ico:'🔵'},{id:'warm',lbl:'Warm',ico:'🟠'},{id:'vintage',lbl:'Vintage',ico:'📽'}];
@@ -446,15 +456,46 @@ const BUILTIN_BGS=[
 ];
 const STICKERS=['❤️','⭐','🌟','✨','🎉','🎊','🎈','🔥','💫','🌈','🦋','🌸','🍀','💎','🎯','🥳','😍','🤩','💃','🎪'];
 
+/* CAMERA DEVICE LIST */
+async function refreshCameraList(){
+  try{
+    const tmp=await navigator.mediaDevices.getUserMedia({video:true}).catch(()=>null);
+    if(tmp) tmp.getTracks().forEach(t=>t.stop());
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    const cams=devices.filter(d=>d.kind==='videoinput');
+    const sel=document.getElementById('a-camera-device');if(!sel) return;
+    const cur=(S&&S.locked&&S.locked.cameraDeviceId)||'';
+    sel.innerHTML='<option value="">Default (auto-select)</option>';
+    cams.forEach(cam=>{
+      const opt=document.createElement('option');
+      opt.value=cam.deviceId;
+      opt.textContent=cam.label||('Camera '+cam.deviceId.slice(0,8));
+      if(cam.deviceId===cur) opt.selected=true;
+      sel.appendChild(opt);
+    });
+    if(cams.length===0) showToast('No cameras found — connect one and try again');
+    else showToast(cams.length+' camera'+(cams.length>1?'s':'')+' found');
+  }catch(e){showToast('Could not list cameras: '+e.message);}
+}
+window.refreshCameraList=refreshCameraList;
+
 /* BOOT */
 loadState();applyTheme();refreshGuestPicker();buildAdminTemplateGrid();buildAdminSlotsBar();renderGallery();initTemplateEditor();loadAdminFields();
+
+
 
 /* NAV */
 function showScr(id){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));document.getElementById(id).classList.add('on');S.scr=id;}
 window.showScr=showScr;
 
 /* ATTRACT */
-document.getElementById('s-attract').addEventListener('click',function(e){if(e.target.classList.contains('admin-btn')) return;startGuestSession();});
+document.getElementById('s-attract').addEventListener('click',function(e){
+  // Only fire startGuestSession from the Start button or a direct tap on the bg/title area
+  // Block gallery-btn, admin-btn, gm-card, gm-start (those have their own handlers)
+  const t=e.target;
+  if(t.closest('.admin-btn')||t.closest('.gallery-btn')||t.closest('.gm-card')||t.closest('.gm-picker')||t.closest('.gm-start')) return;
+  startGuestSession();
+});
 window.S_goPin=function(){S.pinEntry='';updatePinDots();document.getElementById('pin-err').textContent='';showScr('s-pin');};
 function startGuestSession(){
   const L=S.locked;S.filter=L.filter;S.facing=L.facing;
@@ -487,6 +528,7 @@ window.adminTab=function(tab){
   document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+tab).classList.add('on');document.getElementById('panel-'+tab).classList.add('on');
   if(tab==='gallery') renderGallery();
+  if(tab==='event') refreshCameraList();
 };
 
 /* ACTIVATE */
@@ -502,6 +544,7 @@ function readAdminFields(){
   L.overlay=document.getElementById('a-overlay').value;L.color=document.getElementById('a-color').value;
   L.mirror=document.getElementById('a-mirror').checked;L.facing=document.getElementById('a-facing').value;
   const pv=document.getElementById('a-pin').value.trim();if(pv.length===4&&/^\d{4}$/.test(pv)) L.pin=pv;
+  L.cameraDeviceId=document.getElementById('a-camera-device').value||null;
 }
 function loadAdminFields(){
   const L=S.locked;
@@ -543,8 +586,13 @@ function startCam(){
   stopCam();
   const m=S.activeMode||S.locked.mode;
   const land=isLandscapeMode(m);
+  // Use specific device if admin selected one, otherwise use facingMode
+  const deviceId=S.locked.cameraDeviceId;
+  const videoConstraints=deviceId
+    ? {deviceId:{exact:deviceId},width:{ideal:land?1920:1080},height:{ideal:1080}}
+    : {facingMode:S.locked.facing,width:{ideal:land?1920:1080},height:{ideal:1080}};
   navigator.mediaDevices.getUserMedia({
-    video:{facingMode:S.locked.facing,width:{ideal:land?1920:1080},height:{ideal:1080}},audio:false
+    video:videoConstraints, audio:false
   }).then(stream=>{
     S.stream=stream;
     const vid=document.getElementById('cam-vid'),cvs=document.getElementById('cam-cvs');
