@@ -608,16 +608,32 @@ async function composeAndShowGuest(){
   startAutoReset(S.locked.autoReset||15);
 }
 async function applyAdminTemplate(frames){
-  const tpl=S.savedTemplate;const cW=tpl.canvasW,cH=tpl.canvasH;
+  const tpl=S.savedTemplate;
+  // Always render to 1080x1080 regardless of how template was saved
+  const cW=1080,cH=1080;
+  const scaleX=cW/(tpl.canvasW||1080),scaleY=cH/(tpl.canvasH||1080);
   const c=document.createElement('canvas');c.width=cW;c.height=cH;const ctx=c.getContext('2d');
   await drawBg(ctx,cW,cH,S.locked.bgId,S.locked.customBgURL);
   const sorted=[...tpl.objects].sort((a,b)=>a.zIndex-b.zIndex);
   for(const obj of sorted){
-    ctx.save();ctx.translate(obj.x+obj.w/2,obj.y+obj.h/2);ctx.rotate(obj.rot||0);
+    // Scale positions/sizes from saved canvas dims to 1080x1080
+    const sx=obj.x*scaleX,sy=obj.y*scaleY,sw=obj.w*scaleX,sh=obj.h*scaleY;
+    ctx.save();ctx.translate(sx+sw/2,sy+sh/2);ctx.rotate(obj.rot||0);
     if(obj.flipH) ctx.scale(-1,1);if(obj.flipV) ctx.scale(1,-1);
-    if(obj.type==='photo-slot'){const fi=frames[obj._frameIndex]||frames[0];if(fi) ctx.drawImage(fi,-obj.w/2,-obj.h/2,obj.w,obj.h);}
-    else if(obj.type==='text'){ctx.font=`${obj.bold?'600':'400'} ${obj.fontSize||80}px DM Sans,sans-serif`;ctx.fillStyle=obj.color||'#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(obj.text,0,0);}
-    else if(obj.type==='sticker'){ctx.font=`${obj.w}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(obj.text,0,0);}
+    if(obj.type==='photo-slot'){
+      const fi=frames[obj._frameIndex]||frames[0];
+      if(fi) ctx.drawImage(fi,0,0,1080,1080,-sw/2,-sh/2,sw,sh);
+    }
+    else if(obj.type==='text'){
+      const fs=Math.round((obj.fontSize||80)*scaleX);
+      ctx.font=`${obj.bold?'600':'400'} ${fs}px DM Sans,sans-serif`;
+      ctx.fillStyle=obj.color||'#fff';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(obj.text,0,0);
+    }
+    else if(obj.type==='sticker'){
+      ctx.font=`${Math.round(obj.w*scaleX)}px serif`;
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(obj.text,0,0);
+    }
     ctx.restore();
   }
   if(S.locked.overlay) drawWM(ctx,cW,cH,S.locked.overlay);
@@ -625,46 +641,43 @@ async function applyAdminTemplate(frames){
 }
 function composeDefault(frames){
   const mode=S.activeMode||S.locked.mode;if(!frames.length) return document.createElement('canvas');
-  const SZ=1080,gap=16,border=24;
+  // All frames are 1080x1080. All output canvases use 1080x1080 slots.
+  const SZ=1080,b=32,g=20;
 
-  if(mode==='single'){
+  if(mode==='single'||mode==='boomerang'){
     const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
     c.getContext('2d').drawImage(frames[0],0,0,SZ,SZ);return c;
   }
   if(mode==='strip'){
-    // 3 photos stacked vertically
-    const pw=600,ph=600,c=document.createElement('canvas');
-    c.width=pw+border*2;c.height=ph*3+gap*2+border*2;
-    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,c.width,c.height);
-    frames.forEach((f,i)=>ctx.drawImage(f,0,0,SZ,SZ,border,border+i*(ph+gap),pw,ph));
+    const ph=Math.round((SZ-b*2-g*2)/3),pw=SZ-b*2;
+    const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
+    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,SZ,SZ);
+    frames.forEach((f,i)=>ctx.drawImage(f,0,0,SZ,SZ,b,b+i*(ph+g),pw,ph));
     return c;
   }
   if(mode==='strip4'){
-    // 4 photos stacked vertically — photo script
-    const pw=600,ph=500,c=document.createElement('canvas');
-    c.width=pw+border*2;c.height=ph*4+gap*3+border*2;
-    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,c.width,c.height);
-    frames.forEach((f,i)=>ctx.drawImage(f,0,0,SZ,SZ,border,border+i*(ph+gap),pw,ph));
+    const ph=Math.round((SZ-b*2-g*3)/4),pw=SZ-b*2;
+    const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
+    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,SZ,SZ);
+    frames.forEach((f,i)=>ctx.drawImage(f,0,0,SZ,SZ,b,b+i*(ph+g),pw,ph));
     return c;
   }
   if(mode==='duo'){
-    const pw=500,ph=500,c=document.createElement('canvas');
-    c.width=pw*2+gap+border*2;c.height=ph+border*2;
-    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,c.width,c.height);
-    [0,1].forEach(i=>ctx.drawImage(frames[i]||frames[0],0,0,SZ,SZ,border+i*(pw+gap),border,pw,ph));
+    const pw=Math.round((SZ-b*2-g)/2),ph=pw,top=Math.round((SZ-ph)/2);
+    const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
+    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,SZ,SZ);
+    [0,1].forEach(i=>ctx.drawImage(frames[i]||frames[0],0,0,SZ,SZ,b+i*(pw+g),top,pw,ph));
     return c;
   }
   if(mode==='grid'){
-    const pw=500,ph=500,c=document.createElement('canvas');
-    c.width=pw*2+gap+border*2;c.height=ph*2+gap+border*2;
-    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,c.width,c.height);
-    [0,1,2,3].forEach(i=>{const col=i%2,row=Math.floor(i/2);ctx.drawImage(frames[i]||frames[0],0,0,SZ,SZ,border+col*(pw+gap),border+row*(ph+gap),pw,ph);});
-    return c;
-  }
-  if(mode==='boomerang'){
-    // Return first frame as still; GIF is handled separately
+    const pw=Math.round((SZ-b*2-g)/2),ph=pw,top=Math.round((SZ-ph*2-g)/2);
     const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
-    c.getContext('2d').drawImage(frames[0],0,0,SZ,SZ);return c;
+    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,SZ,SZ);
+    [0,1,2,3].forEach(i=>{
+      const col=i%2,row=Math.floor(i/2);
+      ctx.drawImage(frames[i]||frames[0],0,0,SZ,SZ,b+col*(pw+g),top+row*(ph+g),pw,ph);
+    });
+    return c;
   }
   return document.createElement('canvas');
 }
@@ -747,12 +760,8 @@ function initTemplateEditor(){
   const cvs=document.getElementById('tpl-ed-canvas');if(!cvs) return;
   const wrap=cvs.parentElement;const wW=Math.min(wrap.clientWidth||360,500);
   let cW,cH;
-  // Canvas dimensions match final compose output exactly
-  if(S.locked.mode==='strip')      {cW=648;  cH=1848;} // 600+48w, 3x600+2x16+48h
-  else if(S.locked.mode==='strip4'){cW=648;  cH=2096;} // 600+48w, 4x500+3x16+48h
-  else if(S.locked.mode==='duo')   {cW=1048; cH=548;}
-  else if(S.locked.mode==='grid')  {cW=1048; cH=1048;}
-  else                             {cW=1080; cH=1080;} // single / boomerang
+  // All templates are 1080x1080 — matching captured frame size exactly
+  cW=1080; cH=1080;
   cvs.width=cW;cvs.height=cH;const scale=Math.min((wW-24)/cW,320/cH);
   cvs.style.width=Math.round(cW*scale)+'px';cvs.style.height=Math.round(cH*scale)+'px';
   const ed=S.ed;ed.canvas=cvs;ed.ctx=cvs.getContext('2d');ed.canvasW=cW;ed.canvasH=cH;ed.objects=[];ed.selected=-1;ed.history=[];
@@ -763,12 +772,39 @@ function initTemplateEditor(){
 function loadEditorBg(cb){const ed=S.ed;if(S.locked.customBgURL&&S.locked.bgId.startsWith('custom-')){const img=new Image();img.onload=()=>{ed.bgImg=img;ed.bgDef=null;if(cb)cb();};img.src=S.locked.customBgURL;return;}ed.bgImg=null;ed.bgDef=BUILTIN_BGS.find(b=>b.id===S.locked.bgId)||BUILTIN_BGS[0];if(cb)cb();}
 function placeDefaultSlots(){const ed=S.ed,cW=ed.canvasW,cH=ed.canvasH;const slots=getLayoutSlots(S.locked.mode,cW,cH);ed.objects=slots.map((sl,i)=>({type:'photo-slot',_frameIndex:i,label:'Photo '+(i+1),x:sl.x,y:sl.y,w:sl.w,h:sl.h,rot:0,flipH:false,flipV:false,zIndex:i+1}));ed.history=[JSON.stringify(ed.objects)];}
 function getLayoutSlots(mode,cW,cH){
-  const b=24,g=16;
-  if(mode==='single'||mode==='boomerang') return [{x:0,y:0,w:1080,h:1080}];
-  if(mode==='strip'){const pw=600,ph=600;return [0,1,2].map(i=>({x:b,y:b+i*(ph+g),w:pw,h:ph}));}
-  if(mode==='strip4'){const pw=600,ph=500;return [0,1,2,3].map(i=>({x:b,y:b+i*(ph+g),w:pw,h:ph}));}
-  if(mode==='duo'){const pw=500,ph=500;return [{x:b,y:b,w:pw,h:ph},{x:b+pw+g,y:b,w:pw,h:ph}];}
-  if(mode==='grid'){const pw=500,ph=500;return [{x:b,y:b,w:pw,h:ph},{x:b+pw+g,y:b,w:pw,h:ph},{x:b,y:b+ph+g,w:pw,h:ph},{x:b+pw+g,y:b+ph+g,w:pw,h:ph}];}
+  // All slots sized to fill 1080x1080 canvas — each photo slot is 1080x1080 square
+  const S1=1080, b=32, g=20;
+  if(mode==='single'||mode==='boomerang'){
+    // One full-canvas square slot
+    return [{x:0,y:0,w:S1,h:S1}];
+  }
+  if(mode==='strip'){
+    // 3 slots stacked — each slot is 1080 wide, 1080/3 tall (minus gaps/border)
+    const ph=Math.round((S1-b*2-g*2)/3), pw=S1-b*2;
+    return [0,1,2].map(i=>({x:b,y:b+i*(ph+g),w:pw,h:ph}));
+  }
+  if(mode==='strip4'){
+    // 4 slots stacked — each slot is 1080 wide, 1080/4 tall
+    const ph=Math.round((S1-b*2-g*3)/4), pw=S1-b*2;
+    return [0,1,2,3].map(i=>({x:b,y:b+i*(ph+g),w:pw,h:ph}));
+  }
+  if(mode==='duo'){
+    // 2 slots side by side — each is half width, full height (square each)
+    const pw=Math.round((S1-b*2-g)/2), ph=pw;
+    const top=Math.round((S1-ph)/2);
+    return [{x:b,y:top,w:pw,h:ph},{x:b+pw+g,y:top,w:pw,h:ph}];
+  }
+  if(mode==='grid'){
+    // 4 slots in 2x2 — each quarter of the canvas
+    const pw=Math.round((S1-b*2-g)/2), ph=pw;
+    const top=Math.round((S1-ph*2-g)/2);
+    return [
+      {x:b,       y:top,      w:pw,h:ph},
+      {x:b+pw+g,  y:top,      w:pw,h:ph},
+      {x:b,       y:top+ph+g, w:pw,h:ph},
+      {x:b+pw+g,  y:top+ph+g, w:pw,h:ph},
+    ];
+  }
   return [];
 }
 
