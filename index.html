@@ -29,6 +29,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .pr{position:absolute;inset:0;border:1.5px solid var(--p);border-radius:50%;animation:pex 2.6s ease-out infinite;opacity:0}.pr:nth-child(2){animation-delay:.85s}.pr:nth-child(3){animation-delay:1.7s}
 @keyframes pex{0%{transform:scale(.5);opacity:.7}100%{transform:scale(2.8);opacity:0}}
 .pi{font-size:32px;z-index:1}
+.gallery-btn{position:absolute;bottom:calc(18px + var(--safe-b));left:18px;z-index:20;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);font-family:var(--fs);font-size:12px;font-weight:600;letter-spacing:1px;padding:8px 16px;border-radius:var(--rb);cursor:pointer;backdrop-filter:blur(6px);transition:background .15s,color .15s}
+.gallery-btn:active{background:rgba(255,255,255,.12);color:#fff}
 .admin-btn{position:absolute;bottom:calc(18px + var(--safe-b));right:18px;z-index:20;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);font-family:var(--fs);font-size:12px;font-weight:600;letter-spacing:1px;padding:8px 16px;border-radius:var(--rb);cursor:pointer;backdrop-filter:blur(6px);transition:background .15s,color .15s}
 .admin-btn:active{background:rgba(255,255,255,.12);color:#fff}
 /* guest mode picker */
@@ -202,14 +204,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
         <div class="gm-lbl">Photo Script</div>
         <div class="gm-sub">4 photos</div>
       </div>
-      <div class="gm-card" data-mode="boomerang" onclick="guestPickMode(this)">
-        <div class="gm-ico">🔁</div>
-        <div class="gm-lbl">Boomerang</div>
-        <div class="gm-sub">Looping clip</div>
-      </div>
+
     </div>
     <button class="btn-p gm-start" onclick="startGuestSession()">Start →</button>
   </div>
+  <button class="gallery-btn" onclick="openAttractGallery()">🖼 Gallery</button>
   <button class="admin-btn" onclick="S_goPin()">Admin</button>
 </div>
 
@@ -297,7 +296,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
     <div class="admin-section">
       <div class="admin-sec-title">PHOTO MODE</div>
       <div class="cfg-card">
-        <div class="cfg-row"><span class="cfg-label">Layout</span><select id="a-mode"><option value="single">Single Shot (1 photo)</option><option value="duo">Side by Side (2 photos)</option><option value="strip">Photo Strip (3 photos)</option><option value="strip4">Photo Script (4 photos)</option><option value="grid">4-Photo Grid (2×2)</option><option value="boomerang">Boomerang (GIF loop)</option></select></div>
+        <div class="cfg-row"><span class="cfg-label">Layout</span><select id="a-mode"><option value="single">Single Shot (1 photo)</option><option value="duo">Side by Side (2 photos)</option><option value="strip">Photo Strip (3 photos)</option><option value="strip4">Photo Script (4 photos)</option><option value="grid">4-Photo Grid (2×2)</option></select></div>
         <div class="cfg-row"><span class="cfg-label">Filter</span><select id="a-filter"><option value="none">Original</option><option value="bw">B&W</option><option value="sepia">Sepia</option><option value="vivid">Vivid</option><option value="glam">✨ Glam</option><option value="cool">Cool</option><option value="warm">Warm</option><option value="vintage">Vintage</option></select></div>
         <div class="cfg-row"><span class="cfg-label">Countdown</span><select id="a-timer"><option value="3">3 seconds</option><option value="5">5 seconds</option><option value="10">10 seconds</option></select></div>
         <div class="cfg-row"><span class="cfg-label">Auto-reset (seconds)</span><input type="number" id="a-autoreset" value="15" min="5" max="60" style="width:80px;flex:unset"/></div>
@@ -416,7 +415,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
 const S={
   scr:'s-attract',stream:null,shooting:false,
-  frames:[],finalURL:null,gallery:[],boomerangFrames:null,boomerangInterval:null,boomerangCanvas:false,boomerangIdx:0,
+  frames:[],finalURL:null,gallery:[],
   resetInterval:null,adminTaps:0,adminTapTimer:null,pinEntry:'',
   ed:{canvas:null,ctx:null,objects:[],selected:-1,history:[],bgImg:null,bgDef:null,canvasW:0,canvasH:0},
   savedTemplate:null,savedTemplateURL:null,
@@ -424,7 +423,7 @@ const S={
     name:'PhotoBooth Studio',tag:'Tap anywhere to begin',overlay:'',color:'#e8365d',
     bgId:'solid-black',customBgURL:null,pin:'0000'},
 };
-const MODES=[{id:'single',lbl:'Single Shot',shots:1},{id:'duo',lbl:'Side by Side',shots:2},{id:'strip',lbl:'Photo Strip (3)',shots:3},{id:'strip4',lbl:'Photo Script (4)',shots:4},{id:'grid',lbl:'4-Photo Grid',shots:4},{id:'boomerang',lbl:'Boomerang',shots:8}];
+const MODES=[{id:'single',lbl:'Single Shot',shots:1},{id:'duo',lbl:'Side by Side',shots:2},{id:'strip',lbl:'Photo Strip (3)',shots:3},{id:'strip4',lbl:'Photo Script (4)',shots:4},{id:'grid',lbl:'4-Photo Grid',shots:4}];
 const FILTERS=[{id:'none',lbl:'Original',ico:'✨'},{id:'bw',lbl:'B&W',ico:'⬛'},{id:'sepia',lbl:'Sepia',ico:'🟤'},{id:'vivid',lbl:'Vivid',ico:'🌈'},{id:'glam',lbl:'Glam',ico:'💅'},{id:'cool',lbl:'Cool',ico:'🔵'},{id:'warm',lbl:'Warm',ico:'🟠'},{id:'vintage',lbl:'Vintage',ico:'📽'}];
 const BUILTIN_BGS=[
   {id:'solid-black',label:'Classic Black',type:'solid',color:'#0d0d0d'},{id:'solid-white',label:'Clean White',type:'solid',color:'#f8f8f8'},
@@ -475,7 +474,7 @@ window.pinKey=function(d){
 };
 window.pinDel=function(){S.pinEntry=S.pinEntry.slice(0,-1);updatePinDots();};
 function updatePinDots(){for(let i=0;i<4;i++) document.getElementById('pd'+i).classList.toggle('filled',i<S.pinEntry.length);}
-window.adminLogout=function(){showScr('s-attract');};
+window.adminLogout=function(){S._galleryFromAttract=false;showScr('s-attract');};
 
 /* ADMIN TABS */
 window.adminTab=function(tab){
@@ -511,7 +510,7 @@ function loadAdminFields(){
 
 /* THEME */
 function refreshGuestPicker(){
-  // Show all 3 options always — guest picks from template, strip4, boomerang
+  // Show mode options — guest picks from template, strip4
   const picker=document.getElementById('gm-picker');if(!picker) return;
   // Reset selection to first card if nothing chosen
   if(!S.guestMode||S.guestMode==='template'){
@@ -533,7 +532,7 @@ function applyTheme(){
 function isLandscapeMode(m){return m==='strip'||m==='strip4';}
 function getFrameDims(){
   const m=S.activeMode||S.locked.mode;
-  return isLandscapeMode(m)?{fw:1920,fh:1080}:{fw:1080,fh:1080};
+  return isLandscapeMode(m)?{fw:1920,fh:1080}:{fw:1080,fh:1080}; // strip modes landscape, others square
 }
 function startCam(){
   stopCam();
@@ -609,36 +608,56 @@ function captureFrame(){return new Promise(res=>{const fl=document.getElementByI
 /* COMPOSE */
 async function composeAndShowGuest(){
   showProc('Creating your photo…');await sleep(80);
-  let result;
-  if(S.activeMode==='boomerang'){
-    result=await makeBoomerang(S.frames);
-  } else {
-    result=S.savedTemplate?await applyAdminTemplate(S.frames):composeDefault(S.frames);
-  }
+  let result=S.savedTemplate?await applyAdminTemplate(S.frames):composeDefault(S.frames);
   S.finalURL=result.toDataURL?result.toDataURL('image/png'):result;
   addToGallery(S.finalURL);
   const gc=document.getElementById('gr-canvas');
   if(result.width){gc.width=result.width;gc.height=result.height;gc.getContext('2d').drawImage(result,0,0);}
-  hideProc();showScr('s-guest-review');document.getElementById('guest-share-tray').classList.remove('open');if(S.activeMode==='boomerang') startBoomerangPreview();
+  hideProc();showScr('s-guest-review');document.getElementById('guest-share-tray').classList.remove('open');
   startAutoReset(S.locked.autoReset||15);
 }
 async function applyAdminTemplate(frames){
   const tpl=S.savedTemplate;
-  // Render at saved canvas dimensions — preserves background aspect ratio
   const cW=tpl.canvasW||1080, cH=tpl.canvasH||1080;
-  const scaleX=1, scaleY=1; // objects stored at canvas coords — no scaling needed
   const c=document.createElement('canvas');c.width=cW;c.height=cH;const ctx=c.getContext('2d');
-  await drawBg(ctx,cW,cH,S.locked.bgId,S.locked.customBgURL);
-  const sorted=[...tpl.objects].sort((a,b)=>a.zIndex-b.zIndex);
-  for(const obj of sorted){
+
+  // LAYER 1: Background color/gradient/pattern (never the overlay PNG)
+  const bgId=S.locked.bgId, customURL=S.locked.customBgURL;
+  const isOverlayBg=customURL&&bgId.startsWith('custom-');
+  if(isOverlayBg){
+    // Custom upload is the overlay frame — draw solid black bg underneath
+    ctx.fillStyle='#111';ctx.fillRect(0,0,cW,cH);
+  } else {
+    await drawBg(ctx,cW,cH,bgId,null);
+  }
+
+  // LAYER 2: Photo slots — always behind everything else
+  const photoSlots=[...tpl.objects].filter(o=>o.type==='photo-slot').sort((a,b)=>a.zIndex-b.zIndex);
+  for(const obj of photoSlots){
     ctx.save();ctx.translate(obj.x+obj.w/2,obj.y+obj.h/2);ctx.rotate(obj.rot||0);
     if(obj.flipH) ctx.scale(-1,1);if(obj.flipV) ctx.scale(1,-1);
-    if(obj.type==='photo-slot'){
-      // Draw each captured 1080x1080 frame into its slot at the saved size
-      const fi=frames[obj._frameIndex]||frames[0];
-      if(fi) ctx.drawImage(fi,0,0,1080,1080,-obj.w/2,-obj.h/2,obj.w,obj.h);
-    }
-    else if(obj.type==='text'){
+    const fi=frames[obj._frameIndex]||frames[0];
+    const srcW=fi?fi.width:1080, srcH=fi?fi.height:1080;
+    if(fi) ctx.drawImage(fi,0,0,srcW,srcH,-obj.w/2,-obj.h/2,obj.w,obj.h);
+    ctx.restore();
+  }
+
+  // LAYER 3: Overlay PNG template image (drawn ON TOP of photos — this is the frame design)
+  if(isOverlayBg){
+    await new Promise(res=>{
+      const img=new Image();
+      img.onload=()=>{ctx.drawImage(img,0,0,cW,cH);res();};
+      img.onerror=res;
+      img.src=customURL;
+    });
+  }
+
+  // LAYER 4: Text and stickers (on top of everything)
+  const nonPhoto=[...tpl.objects].filter(o=>o.type!=='photo-slot').sort((a,b)=>a.zIndex-b.zIndex);
+  for(const obj of nonPhoto){
+    ctx.save();ctx.translate(obj.x+obj.w/2,obj.y+obj.h/2);ctx.rotate(obj.rot||0);
+    if(obj.flipH) ctx.scale(-1,1);if(obj.flipV) ctx.scale(1,-1);
+    if(obj.type==='text'){
       ctx.font=`${obj.bold?'600':'400'} ${obj.fontSize||80}px DM Sans,sans-serif`;
       ctx.fillStyle=obj.color||'#fff';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText(obj.text,0,0);
@@ -658,7 +677,7 @@ function getCanvasDims(mode){
   if(mode==='strip4') return {w:1920,h:4320};  // 4 landscape frames stacked
   if(mode==='duo')    return {w:2160,h:1080};
   if(mode==='grid')   return {w:2160,h:2160};
-  return {w:1080,h:1080}; // single, boomerang
+  return {w:1080,h:1080}; // single
 }
 function composeDefault(frames){
   const mode=S.activeMode||S.locked.mode;if(!frames.length) return document.createElement('canvas');
@@ -668,7 +687,7 @@ function composeDefault(frames){
   const ctx=c.getContext('2d');
   ctx.fillStyle='#111';ctx.fillRect(0,0,cW,cH);
 
-  if(mode==='single'||mode==='boomerang'){
+  if(mode==='single'){
     ctx.drawImage(frames[0],0,0,SQ,SQ,0,0,cW,cH);return c;
   }
   if(mode==='strip'){
@@ -703,31 +722,7 @@ function composeDefault(frames){
 }
 
 
-/* BOOMERANG — canvas animation shown in review */
-async function makeBoomerang(frames){
-  // Build ping-pong sequence: 0,1,2..n,n-1..1
-  const fwd=[...frames];const bwd=[...frames].reverse().slice(1,frames.length-1);
-  S.boomerangFrames=[...fwd,...bwd];
-  S.boomerangIdx=0;
-  // Return first frame as the static canvas (review canvas will animate it)
-  const c=document.createElement('canvas');c.width=1080;c.height=1080;
-  c.getContext('2d').drawImage(frames[0],0,0,1080,1080);
-  S.boomerangCanvas=true;
-  return c;
-}
-function startBoomerangPreview(){
-  if(!S.boomerangCanvas||!S.boomerangFrames) return;
-  const gc=document.getElementById('gr-canvas');
-  clearInterval(S.boomerangInterval);
-  S.boomerangIdx=0;
-  S.boomerangInterval=setInterval(()=>{
-    if(!S.boomerangFrames) return;
-    const f=S.boomerangFrames[S.boomerangIdx%S.boomerangFrames.length];
-    gc.width=1080;gc.height=1080;gc.getContext('2d').drawImage(f,0,0,1080,1080);
-    S.boomerangIdx++;
-  },80); // ~12fps
-}
-function stopBoomerang(){clearInterval(S.boomerangInterval);S.boomerangInterval=null;S.boomerangCanvas=false;S.boomerangFrames=null;}
+
 /* AUTO RESET */
 function startAutoReset(secs){
   clearAutoReset();let remaining=secs;
@@ -737,7 +732,7 @@ function startAutoReset(secs){
   S.resetInterval=setInterval(()=>{remaining--;document.getElementById('reset-countdown').textContent=remaining;if(remaining<=0){clearAutoReset();resetForNextGuest();}},1000);
 }
 function clearAutoReset(){clearInterval(S.resetInterval);S.resetInterval=null;}
-window.resetForNextGuest=function(){clearAutoReset();stopBoomerang();S.frames=[];S.finalURL=null;S.guestMode='template';refreshGuestPicker();showScr('s-attract');};
+window.resetForNextGuest=function(){clearAutoReset();S.frames=[];S.finalURL=null;S.guestMode='template';refreshGuestPicker();showScr('s-attract');};
 
 /* GUEST SHARE */
 window.guestToggleShare=function(){document.getElementById('guest-share-tray').classList.toggle('open');};
@@ -794,7 +789,7 @@ function initTemplateEditor(){
   else if(_m==='strip4') {cW=1920; cH=4320;} // 4 × 1920×1080 landscape frames stacked
   else if(_m==='duo')    {cW=2160; cH=1080;} // 2 × 1080sq side by side
   else if(_m==='grid')   {cW=2160; cH=2160;} // 4 × 1080sq in 2x2
-  else                   {cW=1080; cH=1080;} // single / boomerang
+  else                   {cW=1080; cH=1080;} // single
   cvs.width=cW;cvs.height=cH;const scale=Math.min((wW-24)/cW,320/cH);
   cvs.style.width=Math.round(cW*scale)+'px';cvs.style.height=Math.round(cH*scale)+'px';
   const ed=S.ed;ed.canvas=cvs;ed.ctx=cvs.getContext('2d');ed.canvasW=cW;ed.canvasH=cH;ed.objects=[];ed.selected=-1;ed.history=[];
@@ -840,7 +835,7 @@ function loadEditorBg(cb){
 function placeDefaultSlots(){const ed=S.ed,cW=ed.canvasW,cH=ed.canvasH;const slots=getLayoutSlots(S.locked.mode,cW,cH);ed.objects=slots.map((sl,i)=>({type:'photo-slot',_frameIndex:i,label:'Photo '+(i+1),x:sl.x,y:sl.y,w:sl.w,h:sl.h,rot:0,flipH:false,flipV:false,zIndex:i+1}));ed.history=[JSON.stringify(ed.objects)];}
 function getLayoutSlots(mode,cW,cH){
   const SQ=1080,LW=1920,LH=1080;
-  if(mode==='single'||mode==='boomerang') return [{x:0,y:0,w:SQ,h:SQ}];
+  if(mode==='single') return [{x:0,y:0,w:SQ,h:SQ}];
   if(mode==='strip'){
     // 1920×3240 canvas — 3 landscape (1920×1080) slots stacked
     const pad=Math.round((cH-LH*3)/4);
@@ -864,7 +859,10 @@ function getLayoutSlots(mode,cW,cH){
 
 function renderEditor(){
   const ed=S.ed,ctx=ed.ctx,cW=ed.canvasW,cH=ed.canvasH;ctx.clearRect(0,0,cW,cH);
-  if(ed.bgImg) ctx.drawImage(ed.bgImg,0,0,cW,cH);else if(ed.bgDef) drawBgSync(ctx,ed.bgDef,cW,cH);else{ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,cW,cH);}
+  // If custom bg is an overlay PNG, draw background color first then PNG on top after slots
+  const isOverlay=!!ed.bgImg;
+  if(!isOverlay){if(ed.bgDef) drawBgSync(ctx,ed.bgDef,cW,cH);else{ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,cW,cH);}}
+  else{ctx.fillStyle='#111';ctx.fillRect(0,0,cW,cH);} // solid bg under photos
   [...ed.objects].sort((a,b)=>a.zIndex-b.zIndex).forEach(obj=>{
     const i=ed.objects.indexOf(obj);ctx.save();ctx.translate(obj.x+obj.w/2,obj.y+obj.h/2);ctx.rotate(obj.rot||0);if(obj.flipH) ctx.scale(-1,1);if(obj.flipV) ctx.scale(1,-1);
     if(obj.type==='photo-slot'){ctx.fillStyle='rgba(255,255,255,.07)';ctx.fillRect(-obj.w/2,-obj.h/2,obj.w,obj.h);ctx.strokeStyle='rgba(255,255,255,.22)';ctx.lineWidth=4;ctx.setLineDash([16,10]);ctx.strokeRect(-obj.w/2,-obj.h/2,obj.w,obj.h);ctx.setLineDash([]);ctx.fillStyle='rgba(255,255,255,.3)';ctx.font=`500 ${Math.round(obj.h*.1)}px DM Sans,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('📷 '+(obj.label||'Photo'),0,0);}
@@ -873,6 +871,8 @@ function renderEditor(){
     ctx.restore();
     if(i===ed.selected){ctx.save();ctx.translate(obj.x+obj.w/2,obj.y+obj.h/2);ctx.rotate(obj.rot||0);ctx.strokeStyle='#e8365d';ctx.lineWidth=5;ctx.setLineDash([14,7]);ctx.strokeRect(-obj.w/2,-obj.h/2,obj.w,obj.h);ctx.setLineDash([]);[[-obj.w/2,-obj.h/2],[obj.w/2,-obj.h/2],[obj.w/2,obj.h/2],[-obj.w/2,obj.h/2]].forEach(([hx,hy])=>{ctx.beginPath();ctx.arc(hx,hy,16,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#e8365d';ctx.lineWidth=3;ctx.stroke();});ctx.beginPath();ctx.arc(0,-obj.h/2-45,16,0,Math.PI*2);ctx.fillStyle='#f5c518';ctx.fill();ctx.stroke();ctx.restore();}
   });
+  // Draw overlay PNG on top of everything (the frame template)
+  if(isOverlay&&ed.bgImg) ctx.drawImage(ed.bgImg,0,0,cW,cH);
   if(S.locked.overlay){ctx.save();ctx.font=`500 ${Math.round(cH*.022)}px DM Sans,sans-serif`;ctx.fillStyle='rgba(255,255,255,.5)';ctx.textAlign='center';ctx.fillText(S.locked.overlay,cW/2,cH*.978);ctx.restore();}
 }
 
@@ -943,9 +943,9 @@ function renderFS(){
   const cvs=S.fsCvs;if(!cvs) return;
   const ctx=S.fsCtx,ed=S.ed,cW=ed.canvasW,cH=ed.canvasH;
   ctx.clearRect(0,0,cW,cH);
-  if(ed.bgImg) ctx.drawImage(ed.bgImg,0,0,cW,cH);
-  else if(ed.bgDef) drawBgSync(ctx,ed.bgDef,cW,cH);
-  else{ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,cW,cH);}
+  const isOverlay=!!ed.bgImg;
+  if(!isOverlay){if(ed.bgDef) drawBgSync(ctx,ed.bgDef,cW,cH);else{ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,cW,cH);}}
+  else{ctx.fillStyle='#111';ctx.fillRect(0,0,cW,cH);}
   [...ed.objects].sort((a,b)=>a.zIndex-b.zIndex).forEach(obj=>{
     const i=ed.objects.indexOf(obj);
     ctx.save();ctx.translate(obj.x+obj.w/2,obj.y+obj.h/2);ctx.rotate(obj.rot||0);
@@ -962,6 +962,7 @@ function renderFS(){
       ctx.restore();
     }
   });
+  if(isOverlay&&ed.bgImg) ctx.drawImage(ed.bgImg,0,0,cW,cH);
   if(S.locked.overlay){ctx.save();ctx.font=`500 ${Math.round(cH*.022)}px DM Sans,sans-serif`;ctx.fillStyle='rgba(255,255,255,.5)';ctx.textAlign='center';ctx.fillText(S.locked.overlay,cW/2,cH*.978);ctx.restore();}
 }
 
@@ -1018,6 +1019,15 @@ window.saveTplFromFullscreen=function(){saveTemplate();closeTplFullscreen();};
 
 /* GALLERY */
 function addToGallery(url){S.gallery.unshift(url);try{localStorage.setItem('pb_gal',JSON.stringify(S.gallery.slice(0,80)));}catch(e){}document.getElementById('gallery-count').textContent=S.gallery.length+' photo'+(S.gallery.length!==1?'s':'');}
+window.openAttractGallery=function(){
+  adminTab('gallery');
+  // Show admin panel without PIN — gallery view only
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.getElementById('s-admin').classList.add('on');
+  renderGallery();
+  // Mark as gallery-only mode so back goes to attract
+  S._galleryFromAttract=true;
+};
 function renderGallery(){const gg=document.getElementById('gg');if(!gg) return;gg.innerHTML='';document.getElementById('gallery-count').textContent=S.gallery.length+' photo'+(S.gallery.length!==1?'s':'');if(!S.gallery.length){gg.innerHTML='<div class="g-empty">No photos yet. Go launch the booth!</div>';return;}S.gallery.forEach(url=>{const d=document.createElement('div');d.className='gi';const im=document.createElement('img');im.src=url;im.loading='lazy';d.appendChild(im);d.onclick=()=>openLB(url);gg.appendChild(d);});}
 window.clearGallery=function(){if(!confirm('Delete all photos?')) return;S.gallery=[];try{localStorage.removeItem('pb_gal');}catch(e){}renderGallery();};
 window.exportAllPhotos=function(){if(!S.gallery.length){alert('No photos.');return;}S.gallery.forEach((url,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=url;a.download='photo-'+(i+1)+'.png';a.click();},i*300));};
