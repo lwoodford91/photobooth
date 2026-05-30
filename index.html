@@ -58,7 +58,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .mode-pill{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);color:#fff;padding:6px 14px;border-radius:var(--rb);font-size:11px;font-weight:600;backdrop-filter:blur(8px);letter-spacing:.5px}
 .flip-btn{background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;width:44px;height:44px;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .cvp{position:absolute;inset:0;overflow:hidden}
-#cam-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;visibility:hidden}#cam-cvs{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(calc(100vh - 140px),100vw);height:min(calc(100vh - 140px),100vw);object-fit:contain}
+#cam-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;visibility:hidden}#cam-cvs{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:100%;max-height:calc(100vh - 140px);object-fit:contain}
 #cam-vid{z-index:1}#cam-cvs{z-index:2;pointer-events:none}
 .cdown-wrap{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;pointer-events:none;transition:background .3s}
 .cdown-wrap.dim{background:rgba(0,0,0,.35)}
@@ -530,40 +530,55 @@ function applyTheme(){
 }
 
 /* CAMERA */
+function isLandscapeMode(m){return m==='strip'||m==='strip4';}
+function getFrameDims(){
+  const m=S.activeMode||S.locked.mode;
+  return isLandscapeMode(m)?{fw:1920,fh:1080}:{fw:1080,fh:1080};
+}
 function startCam(){
   stopCam();
-  const SZ=1080;
-  navigator.mediaDevices.getUserMedia({video:{facingMode:S.locked.facing,width:{ideal:SZ},height:{ideal:SZ}},audio:false})
-    .then(stream=>{
-      S.stream=stream;const vid=document.getElementById('cam-vid'),cvs=document.getElementById('cam-cvs');
-      vid.srcObject=stream;vid.play();
-      vid.onloadedmetadata=()=>{
-        // Always work in square 1080x1080
-        cvs.width=SZ;cvs.height=SZ;
-        const ctx=cvs.getContext('2d');
-        function loop(){
-          if(!vid.srcObject) return;
-          requestAnimationFrame(loop);
-          const vw=vid.videoWidth,vh=vid.videoHeight;
+  const m=S.activeMode||S.locked.mode;
+  const land=isLandscapeMode(m);
+  navigator.mediaDevices.getUserMedia({
+    video:{facingMode:S.locked.facing,width:{ideal:land?1920:1080},height:{ideal:1080}},audio:false
+  }).then(stream=>{
+    S.stream=stream;
+    const vid=document.getElementById('cam-vid'),cvs=document.getElementById('cam-cvs');
+    vid.srcObject=stream;vid.play();
+    vid.onloadedmetadata=()=>{
+      const{fw,fh}=getFrameDims();
+      cvs.width=fw;cvs.height=fh;
+      const ctx=cvs.getContext('2d');
+      function loop(){
+        if(!vid.srcObject) return;
+        requestAnimationFrame(loop);
+        const vw=vid.videoWidth,vh=vid.videoHeight;
+        ctx.save();
+        if(S.locked.mirror&&S.locked.facing==='user'){ctx.translate(fw,0);ctx.scale(-1,1);}
+        if(land){
+          // Landscape: fill width, centre-crop height
+          const srcH=Math.round(vw*(fh/fw));
+          const sy=Math.max(0,(vh-srcH)/2);
+          ctx.drawImage(vid,0,sy,vw,Math.min(srcH,vh),0,0,fw,fh);
+        } else {
+          // Square: centre-crop
           const sq=Math.min(vw,vh);
-          const sx=(vw-sq)/2,sy=(vh-sq)/2;
-          ctx.save();
-          if(S.locked.mirror&&S.locked.facing==='user'){ctx.translate(SZ,0);ctx.scale(-1,1);}
-          ctx.drawImage(vid,sx,sy,sq,sq,0,0,SZ,SZ);
-          ctx.restore();
-          if(S.locked.filter!=='none') applyFx(ctx,SZ,SZ);
-          if(S.locked.overlay) drawWM(ctx,SZ,SZ,S.locked.overlay);
+          ctx.drawImage(vid,(vw-sq)/2,(vh-sq)/2,sq,sq,0,0,fw,fh);
         }
-        loop();
-      };
-    }).catch(()=>alert('Camera permission required. Please allow and reload.'));
+        ctx.restore();
+        if(S.locked.filter!=='none') applyFx(ctx,fw,fh);
+        if(S.locked.overlay) drawWM(ctx,fw,fh,S.locked.overlay);
+      }
+      loop();
+    };
+  }).catch(()=>alert('Camera permission required. Please allow and reload.'));
 }
 function stopCam(){if(S.stream){S.stream.getTracks().forEach(t=>t.stop());S.stream=null;}const v=document.getElementById('cam-vid');if(v) v.srcObject=null;}
 window.flipCam=function(){S.locked.facing=S.locked.facing==='user'?'environment':'user';startCam();};
 function drawWM(ctx,w,h,t){ctx.save();ctx.font=`500 ${Math.round(h*.026)}px DM Sans,sans-serif`;ctx.fillStyle='rgba(255,255,255,.6)';ctx.textAlign='center';ctx.fillText(t,w/2,h*.968);ctx.restore();}
 
 /* DOTS */
-function buildDots(){const m=MODES.find(x=>x.id===S.locked.mode),total=m?m.shots:1;const ind=document.getElementById('shots-ind');ind.innerHTML='';if(total<2) return;for(let i=0;i<total;i++){const d=document.createElement('div');d.className='shot-dot';ind.appendChild(d);}}
+function buildDots(){const m=MODES.find(x=>x.id===S.activeMode||S.locked.mode),total=m?m.shots:1;const ind=document.getElementById('shots-ind');ind.innerHTML='';if(total<2) return;for(let i=0;i<total;i++){const d=document.createElement('div');d.className='shot-dot';ind.appendChild(d);}}
 
 /* FILTERS */
 function applyFx(ctx,w,h){
@@ -589,7 +604,7 @@ window.shoot=async function(){
 };
 function countdown(secs){return new Promise(res=>{const wrap=document.getElementById('cdown-wrap'),num=document.getElementById('cdown-num');wrap.classList.add('dim');let c=secs;showNum(c);const iv=setInterval(()=>{c--;if(c<=0){clearInterval(iv);wrap.classList.remove('dim');num.classList.remove('show');res();}else showNum(c);},1000);});}
 function showNum(n){const el=document.getElementById('cdown-num');el.classList.remove('show');void el.offsetWidth;el.textContent=n;el.classList.add('show');}
-function captureFrame(){return new Promise(res=>{const fl=document.getElementById('flash');fl.classList.add('go');setTimeout(()=>fl.classList.remove('go'),100);const src=document.getElementById('cam-cvs');const c=document.createElement('canvas');c.width=1080;c.height=1080;c.getContext('2d').drawImage(src,0,0,1080,1080);S.frames.push(c);res();});}
+function captureFrame(){return new Promise(res=>{const fl=document.getElementById('flash');fl.classList.add('go');setTimeout(()=>fl.classList.remove('go'),100);const src=document.getElementById('cam-cvs');const{fw,fh}=getFrameDims();const c=document.createElement('canvas');c.width=fw;c.height=fh;c.getContext('2d').drawImage(src,0,0,fw,fh);S.frames.push(c);res();});}
 
 /* COMPOSE */
 async function composeAndShowGuest(){
@@ -609,29 +624,27 @@ async function composeAndShowGuest(){
 }
 async function applyAdminTemplate(frames){
   const tpl=S.savedTemplate;
-  // Always render to 1080x1080 regardless of how template was saved
-  const cW=1080,cH=1080;
-  const scaleX=cW/(tpl.canvasW||1080),scaleY=cH/(tpl.canvasH||1080);
+  // Render at saved canvas dimensions — preserves background aspect ratio
+  const cW=tpl.canvasW||1080, cH=tpl.canvasH||1080;
+  const scaleX=1, scaleY=1; // objects stored at canvas coords — no scaling needed
   const c=document.createElement('canvas');c.width=cW;c.height=cH;const ctx=c.getContext('2d');
   await drawBg(ctx,cW,cH,S.locked.bgId,S.locked.customBgURL);
   const sorted=[...tpl.objects].sort((a,b)=>a.zIndex-b.zIndex);
   for(const obj of sorted){
-    // Scale positions/sizes from saved canvas dims to 1080x1080
-    const sx=obj.x*scaleX,sy=obj.y*scaleY,sw=obj.w*scaleX,sh=obj.h*scaleY;
-    ctx.save();ctx.translate(sx+sw/2,sy+sh/2);ctx.rotate(obj.rot||0);
+    ctx.save();ctx.translate(obj.x+obj.w/2,obj.y+obj.h/2);ctx.rotate(obj.rot||0);
     if(obj.flipH) ctx.scale(-1,1);if(obj.flipV) ctx.scale(1,-1);
     if(obj.type==='photo-slot'){
+      // Draw each captured 1080x1080 frame into its slot at the saved size
       const fi=frames[obj._frameIndex]||frames[0];
-      if(fi) ctx.drawImage(fi,0,0,1080,1080,-sw/2,-sh/2,sw,sh);
+      if(fi) ctx.drawImage(fi,0,0,1080,1080,-obj.w/2,-obj.h/2,obj.w,obj.h);
     }
     else if(obj.type==='text'){
-      const fs=Math.round((obj.fontSize||80)*scaleX);
-      ctx.font=`${obj.bold?'600':'400'} ${fs}px DM Sans,sans-serif`;
+      ctx.font=`${obj.bold?'600':'400'} ${obj.fontSize||80}px DM Sans,sans-serif`;
       ctx.fillStyle=obj.color||'#fff';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText(obj.text,0,0);
     }
     else if(obj.type==='sticker'){
-      ctx.font=`${Math.round(obj.w*scaleX)}px serif`;
+      ctx.font=`${obj.w}px serif`;
       ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(obj.text,0,0);
     }
     ctx.restore();
@@ -639,47 +652,54 @@ async function applyAdminTemplate(frames){
   if(S.locked.overlay) drawWM(ctx,cW,cH,S.locked.overlay);
   return c;
 }
+function getCanvasDims(mode){
+  // Returns the correct output canvas size for each mode
+  if(mode==='strip')  return {w:1920,h:3240};  // 3 landscape frames stacked
+  if(mode==='strip4') return {w:1920,h:4320};  // 4 landscape frames stacked
+  if(mode==='duo')    return {w:2160,h:1080};
+  if(mode==='grid')   return {w:2160,h:2160};
+  return {w:1080,h:1080}; // single, boomerang
+}
 function composeDefault(frames){
   const mode=S.activeMode||S.locked.mode;if(!frames.length) return document.createElement('canvas');
-  // All frames are 1080x1080. All output canvases use 1080x1080 slots.
-  const SZ=1080,b=32,g=20;
+  const SQ=1080; // each captured frame is always 1080x1080
+  const {w:cW,h:cH}=getCanvasDims(mode);
+  const c=document.createElement('canvas');c.width=cW;c.height=cH;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#111';ctx.fillRect(0,0,cW,cH);
 
   if(mode==='single'||mode==='boomerang'){
-    const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
-    c.getContext('2d').drawImage(frames[0],0,0,SZ,SZ);return c;
+    ctx.drawImage(frames[0],0,0,SQ,SQ,0,0,cW,cH);return c;
   }
   if(mode==='strip'){
-    const ph=Math.round((SZ-b*2-g*2)/3),pw=SZ-b*2;
-    const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
-    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,SZ,SZ);
-    frames.forEach((f,i)=>ctx.drawImage(f,0,0,SZ,SZ,b,b+i*(ph+g),pw,ph));
+    // 3 × 1920×1080 landscape frames in 1920×3240 canvas
+    const LW=1920,LH=1080,pad=Math.round((cH-LH*3)/4);
+    frames.forEach((f,i)=>ctx.drawImage(f,0,0,LW,LH,0,pad+i*(LH+pad),LW,LH));
     return c;
   }
   if(mode==='strip4'){
-    const ph=Math.round((SZ-b*2-g*3)/4),pw=SZ-b*2;
-    const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
-    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,SZ,SZ);
-    frames.forEach((f,i)=>ctx.drawImage(f,0,0,SZ,SZ,b,b+i*(ph+g),pw,ph));
+    // 4 × 1920×1080 landscape frames in 1920×4320 canvas
+    const LW=1920,LH=1080,pad=Math.round((cH-LH*4)/5);
+    frames.forEach((f,i)=>ctx.drawImage(f,0,0,LW,LH,0,pad+i*(LH+pad),LW,LH));
     return c;
   }
   if(mode==='duo'){
-    const pw=Math.round((SZ-b*2-g)/2),ph=pw,top=Math.round((SZ-ph)/2);
-    const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
-    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,SZ,SZ);
-    [0,1].forEach(i=>ctx.drawImage(frames[i]||frames[0],0,0,SZ,SZ,b+i*(pw+g),top,pw,ph));
+    // 2 × 1080x1080 photos side by side in 2160×1080 canvas
+    const pad=Math.round((cW-SQ*2)/3);
+    const top=Math.round((cH-SQ)/2);
+    [0,1].forEach(i=>ctx.drawImage(frames[i]||frames[0],0,0,SQ,SQ,pad+i*(SQ+pad),top,SQ,SQ));
     return c;
   }
   if(mode==='grid'){
-    const pw=Math.round((SZ-b*2-g)/2),ph=pw,top=Math.round((SZ-ph*2-g)/2);
-    const c=document.createElement('canvas');c.width=SZ;c.height=SZ;
-    const ctx=c.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,SZ,SZ);
+    // 4 × 1080x1080 photos in 2×2 grid in 2160×2160 canvas
+    const pad=Math.round((cW-SQ*2)/3);
     [0,1,2,3].forEach(i=>{
       const col=i%2,row=Math.floor(i/2);
-      ctx.drawImage(frames[i]||frames[0],0,0,SZ,SZ,b+col*(pw+g),top+row*(ph+g),pw,ph);
+      ctx.drawImage(frames[i]||frames[0],0,0,SQ,SQ,pad+col*(SQ+pad),pad+row*(SQ+pad),SQ,SQ);
     });
     return c;
   }
-  return document.createElement('canvas');
+  return c;
 }
 
 
@@ -749,7 +769,14 @@ function renderBgPreview(bg,w,h){const c=document.createElement('canvas');c.widt
 function drawBgSync(ctx,bg,w,h){if(bg.type==='solid'){ctx.fillStyle=bg.color;ctx.fillRect(0,0,w,h);}else if(bg.type==='grad'){const g=ctx.createLinearGradient(0,0,w,h);bg.colors.forEach((col,i)=>g.addColorStop(i/(bg.colors.length-1),col));ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}else if(bg.type==='pattern') drawPattern(ctx,bg,w,h);}
 function drawPattern(ctx,bg,w,h){ctx.fillStyle=bg.bg||'#fff';ctx.fillRect(0,0,w,h);if(bg.pat==='dots'){ctx.fillStyle=bg.fg||'#555';for(let x=10;x<w;x+=18)for(let y=10;y<h;y+=18){ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill();}}else if(bg.pat==='grid'){ctx.strokeStyle=bg.fg||'#ccc';ctx.lineWidth=.8;for(let x=0;x<w;x+=18){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}for(let y=0;y<h;y+=18){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}}else if(bg.pat==='confetti'){const cols=['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff','#5f27cd'];for(let i=0;i<50;i++){ctx.fillStyle=cols[i%cols.length];ctx.save();ctx.translate(Math.random()*w,Math.random()*h);ctx.rotate(Math.random()*Math.PI);ctx.fillRect(-4,-2,8,4);ctx.restore();}}}
 async function drawBg(ctx,cW,cH,bgId,customBgURL){
-  if(customBgURL||bgId.startsWith('custom-')){return new Promise(res=>{const url=customBgURL||getSavedBgs()[parseInt(bgId.replace('custom-',''))||0];if(!url){ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,cW,cH);res();return;}const img=new Image();img.onload=()=>{ctx.drawImage(img,0,0,cW,cH);res();};img.onerror=()=>{ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,cW,cH);res();};img.src=url;});}
+  if(customBgURL||bgId.startsWith('custom-')){return new Promise(res=>{const url=customBgURL||getSavedBgs()[parseInt(bgId.replace('custom-',''))||0];if(!url){ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,cW,cH);res();return;}const img=new Image();img.onload=()=>{
+    // Draw background preserving its aspect ratio — fill canvas without stretching
+    const iR=img.naturalWidth/img.naturalHeight, cR=cW/cH;
+    let sx=0,sy=0,sw=img.naturalWidth,sh=img.naturalHeight;
+    if(iR>cR){sw=Math.round(img.naturalHeight*cR);sx=Math.round((img.naturalWidth-sw)/2);}
+    else{sh=Math.round(img.naturalWidth/cR);sy=Math.round((img.naturalHeight-sh)/2);}
+    ctx.drawImage(img,sx,sy,sw,sh,0,0,cW,cH);res();
+  };img.onerror=()=>{ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,cW,cH);res();};img.src=url;});}
   const bg=BUILTIN_BGS.find(b=>b.id===bgId)||BUILTIN_BGS[0];drawBgSync(ctx,bg,cW,cH);
 }
 document.getElementById('bg-upload-hidden').addEventListener('change',function(e){const file=e.target.files[0];if(!file) return;const reader=new FileReader();reader.onload=ev=>{const url=ev.target.result;const bgs=getSavedBgs();bgs.unshift(url);try{localStorage.setItem('pb_bgs',JSON.stringify(bgs.slice(0,8)));}catch(ex){}S.locked.bgId='custom-0';S.locked.customBgURL=url;buildAdminTemplateGrid();loadEditorBg(()=>renderEditor());};reader.readAsDataURL(file);this.value='';});
@@ -760,8 +787,14 @@ function initTemplateEditor(){
   const cvs=document.getElementById('tpl-ed-canvas');if(!cvs) return;
   const wrap=cvs.parentElement;const wW=Math.min(wrap.clientWidth||360,500);
   let cW,cH;
-  // All templates are 1080x1080 — matching captured frame size exactly
-  cW=1080; cH=1080;
+  // Canvas matches natural output dimensions per mode
+  // Photo slots are always 1080x1080 squares
+  const _m=S.locked.mode;
+  if(_m==='strip')       {cW=1920; cH=3240;} // 3 × 1920×1080 landscape frames stacked
+  else if(_m==='strip4') {cW=1920; cH=4320;} // 4 × 1920×1080 landscape frames stacked
+  else if(_m==='duo')    {cW=2160; cH=1080;} // 2 × 1080sq side by side
+  else if(_m==='grid')   {cW=2160; cH=2160;} // 4 × 1080sq in 2x2
+  else                   {cW=1080; cH=1080;} // single / boomerang
   cvs.width=cW;cvs.height=cH;const scale=Math.min((wW-24)/cW,320/cH);
   cvs.style.width=Math.round(cW*scale)+'px';cvs.style.height=Math.round(cH*scale)+'px';
   const ed=S.ed;ed.canvas=cvs;ed.ctx=cvs.getContext('2d');ed.canvasW=cW;ed.canvasH=cH;ed.objects=[];ed.selected=-1;ed.history=[];
@@ -769,41 +802,62 @@ function initTemplateEditor(){
   cvs.addEventListener('touchstart',edTouchStart,{passive:false});cvs.addEventListener('touchmove',edTouchMove,{passive:false});cvs.addEventListener('touchend',edTouchEnd,{passive:false});
   cvs.addEventListener('mousedown',edMouseDown);window.addEventListener('mousemove',edMouseMove);window.addEventListener('mouseup',edMouseUp);
 }
-function loadEditorBg(cb){const ed=S.ed;if(S.locked.customBgURL&&S.locked.bgId.startsWith('custom-')){const img=new Image();img.onload=()=>{ed.bgImg=img;ed.bgDef=null;if(cb)cb();};img.src=S.locked.customBgURL;return;}ed.bgImg=null;ed.bgDef=BUILTIN_BGS.find(b=>b.id===S.locked.bgId)||BUILTIN_BGS[0];if(cb)cb();}
+function loadEditorBg(cb){
+  const ed=S.ed;
+  if(S.locked.customBgURL&&S.locked.bgId.startsWith('custom-')){
+    const img=new Image();
+    img.onload=()=>{
+      ed.bgImg=img;ed.bgDef=null;
+      // Resize canvas to match image's aspect ratio within the mode's expected dims
+      const {w:mW,h:mH}=getCanvasDims(S.locked.mode);
+      const iR=img.naturalWidth/img.naturalHeight;
+      const mR=mW/mH;
+      // If image ratio closely matches mode ratio (within 20%) use image dims directly
+      // Otherwise keep mode canvas dims so slots stay correct
+      if(Math.abs(iR-mR)<0.3){
+        // Use image's own ratio, scale to fit within mode max dimension
+        const maxDim=Math.max(mW,mH);
+        if(iR>=1){ed.canvasW=maxDim;ed.canvasH=Math.round(maxDim/iR);}
+        else{ed.canvasH=maxDim;ed.canvasW=Math.round(maxDim*iR);}
+      } else {
+        ed.canvasW=mW;ed.canvasH=mH;
+      }
+      // Update canvas element size
+      const cvs=ed.canvas;if(cvs){
+        cvs.width=ed.canvasW;cvs.height=ed.canvasH;
+        const wrap=cvs.parentElement;const wW=Math.min((wrap?wrap.clientWidth:360)||360,500);
+        const scale=Math.min((wW-24)/ed.canvasW,320/ed.canvasH);
+        cvs.style.width=Math.round(ed.canvasW*scale)+'px';
+        cvs.style.height=Math.round(ed.canvasH*scale)+'px';
+      }
+      if(cb)cb();
+    };
+    img.src=S.locked.customBgURL;return;
+  }
+  ed.bgImg=null;ed.bgDef=BUILTIN_BGS.find(b=>b.id===S.locked.bgId)||BUILTIN_BGS[0];
+  if(cb)cb();
+}
 function placeDefaultSlots(){const ed=S.ed,cW=ed.canvasW,cH=ed.canvasH;const slots=getLayoutSlots(S.locked.mode,cW,cH);ed.objects=slots.map((sl,i)=>({type:'photo-slot',_frameIndex:i,label:'Photo '+(i+1),x:sl.x,y:sl.y,w:sl.w,h:sl.h,rot:0,flipH:false,flipV:false,zIndex:i+1}));ed.history=[JSON.stringify(ed.objects)];}
 function getLayoutSlots(mode,cW,cH){
-  // All slots sized to fill 1080x1080 canvas — each photo slot is 1080x1080 square
-  const S1=1080, b=32, g=20;
-  if(mode==='single'||mode==='boomerang'){
-    // One full-canvas square slot
-    return [{x:0,y:0,w:S1,h:S1}];
-  }
+  const SQ=1080,LW=1920,LH=1080;
+  if(mode==='single'||mode==='boomerang') return [{x:0,y:0,w:SQ,h:SQ}];
   if(mode==='strip'){
-    // 3 slots stacked — each slot is 1080 wide, 1080/3 tall (minus gaps/border)
-    const ph=Math.round((S1-b*2-g*2)/3), pw=S1-b*2;
-    return [0,1,2].map(i=>({x:b,y:b+i*(ph+g),w:pw,h:ph}));
+    // 1920×3240 canvas — 3 landscape (1920×1080) slots stacked
+    const pad=Math.round((cH-LH*3)/4);
+    return [0,1,2].map(i=>({x:0,y:pad+i*(LH+pad),w:LW,h:LH}));
   }
   if(mode==='strip4'){
-    // 4 slots stacked — each slot is 1080 wide, 1080/4 tall
-    const ph=Math.round((S1-b*2-g*3)/4), pw=S1-b*2;
-    return [0,1,2,3].map(i=>({x:b,y:b+i*(ph+g),w:pw,h:ph}));
+    // 1920×4320 canvas — 4 landscape (1920×1080) slots stacked
+    const pad=Math.round((cH-LH*4)/5);
+    return [0,1,2,3].map(i=>({x:0,y:pad+i*(LH+pad),w:LW,h:LH}));
   }
   if(mode==='duo'){
-    // 2 slots side by side — each is half width, full height (square each)
-    const pw=Math.round((S1-b*2-g)/2), ph=pw;
-    const top=Math.round((S1-ph)/2);
-    return [{x:b,y:top,w:pw,h:ph},{x:b+pw+g,y:top,w:pw,h:ph}];
+    const pad=Math.round((cW-SQ*2)/3),top=Math.round((cH-SQ)/2);
+    return [{x:pad,y:top,w:SQ,h:SQ},{x:pad*2+SQ,y:top,w:SQ,h:SQ}];
   }
   if(mode==='grid'){
-    // 4 slots in 2x2 — each quarter of the canvas
-    const pw=Math.round((S1-b*2-g)/2), ph=pw;
-    const top=Math.round((S1-ph*2-g)/2);
-    return [
-      {x:b,       y:top,      w:pw,h:ph},
-      {x:b+pw+g,  y:top,      w:pw,h:ph},
-      {x:b,       y:top+ph+g, w:pw,h:ph},
-      {x:b+pw+g,  y:top+ph+g, w:pw,h:ph},
-    ];
+    const pad=Math.round((cW-SQ*2)/3);
+    return [{x:pad,y:pad,w:SQ,h:SQ},{x:pad*2+SQ,y:pad,w:SQ,h:SQ},{x:pad,y:pad*2+SQ,w:SQ,h:SQ},{x:pad*2+SQ,y:pad*2+SQ,w:SQ,h:SQ}];
   }
   return [];
 }
