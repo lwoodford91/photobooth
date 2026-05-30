@@ -323,6 +323,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
         <button class="ed-tool" onclick="edAddText()"><span class="t-ico">T</span>Text</button>
         <button class="ed-tool" onclick="edAddSticker()"><span class="t-ico">⭐</span>Sticker</button>
         <button class="ed-tool" onclick="edResetLayout()"><span class="t-ico">↺</span>Reset</button>
+        <button class="ed-tool" onclick="edAutoDetect()" style="border-color:rgba(0,195,255,.4);background:rgba(0,195,255,.08);color:#00c3ff"><span class="t-ico">🎯</span>Auto-Fit</button>
       </div>
       <div style="margin-top:12px"><button class="btn-p wide" onclick="saveTemplate()">💾 Save Template for Guests</button></div>
       <div class="saved-tpl-preview" id="saved-tpl-preview" style="display:none">
@@ -420,6 +421,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
     <button class="ed-tool" onclick="fsAddText()"><span class="t-ico">T</span>Text</button>
     <button class="ed-tool" onclick="fsAddSticker()"><span class="t-ico">⭐</span>Sticker</button>
     <button class="ed-tool" onclick="fsReset()"><span class="t-ico">↺</span>Reset</button>
+    <button class="ed-tool" onclick="fsAutoDetect()" style="border-color:rgba(0,195,255,.4);background:rgba(0,195,255,.08);color:#00c3ff"><span class="t-ico">🎯</span>Auto-Fit</button>
   </div>
 </div>
 
@@ -431,6 +433,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 const S={
   scr:'s-attract',stream:null,shooting:false,
   frames:[],finalURL:null,gallery:[],
+  guestMode:'template',activeMode:'single',
   resetInterval:null,adminTaps:0,adminTapTimer:null,pinEntry:'',
   ed:{canvas:null,ctx:null,objects:[],selected:-1,history:[],bgImg:null,bgDef:null,canvasW:0,canvasH:0},
   savedTemplate:null,savedTemplateURL:null,
@@ -490,22 +493,34 @@ window.showScr=showScr;
 
 /* ATTRACT */
 document.getElementById('s-attract').addEventListener('click',function(e){
-  // Only fire startGuestSession from the Start button or a direct tap on the bg/title area
-  // Block gallery-btn, admin-btn, gm-card, gm-start (those have their own handlers)
   const t=e.target;
-  if(t.closest('.admin-btn')||t.closest('.gallery-btn')||t.closest('.gm-card')||t.closest('.gm-picker')||t.closest('.gm-start')) return;
+  // Only block admin and gallery buttons — let everything else (including bg tap) work
+  if(t.closest('.admin-btn')||t.closest('.gallery-btn')) return;
+  // Don't auto-start if tapping a mode card or the start button (they handle themselves)
+  if(t.closest('.gm-card')||t.closest('.gm-start')||t.closest('.gm-picker')) return;
+  // Tapping background/title starts with current selection
   startGuestSession();
 });
 window.S_goPin=function(){S.pinEntry='';updatePinDots();document.getElementById('pin-err').textContent='';showScr('s-pin');};
 function startGuestSession(){
-  const L=S.locked;S.filter=L.filter;S.facing=L.facing;
+  const L=S.locked;
+  // Use guest's chosen mode; 'template' means use whatever admin locked
+  S.activeMode=(S.guestMode&&S.guestMode!=='template')?S.guestMode:L.mode;
+  S.filter=L.filter;S.facing=L.facing;
   const f=FILTERS.find(x=>x.id===L.filter)||FILTERS[0];
   document.getElementById('filter-icon-live').textContent=f.ico;
   document.getElementById('filter-name-live').textContent=f.lbl;
-  const m=MODES.find(x=>x.id===L.mode);
-  document.getElementById('mode-pill').textContent=m?m.lbl.toUpperCase():'PHOTO BOOTH';
+  const m=MODES.find(x=>x.id===S.activeMode)||MODES[0];
+  document.getElementById('mode-pill').textContent=m.lbl.toUpperCase();
   buildDots();showScr('s-camera');startCam();
 }
+window.startGuestSession=startGuestSession;
+
+window.guestPickMode=function(el){
+  document.querySelectorAll('#gm-picker .gm-card').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  S.guestMode=el.dataset.mode;
+};
 
 /* ADMIN UNLOCK */
 window.adminTapCount=function(){S.adminTaps++;clearTimeout(S.adminTapTimer);S.adminTapTimer=setTimeout(()=>{S.adminTaps=0;},2000);if(S.adminTaps>=5){S.adminTaps=0;S.pinEntry='';updatePinDots();showScr('s-pin');}};
@@ -558,13 +573,9 @@ function loadAdminFields(){
 
 /* THEME */
 function refreshGuestPicker(){
-  // Show mode options — guest picks from template, strip4
   const picker=document.getElementById('gm-picker');if(!picker) return;
-  // Reset selection to first card if nothing chosen
-  if(!S.guestMode||S.guestMode==='template'){
-    document.querySelectorAll('.gm-card').forEach((c,i)=>c.classList.toggle('sel',i===0));
-    S.guestMode='template';
-  }
+  S.guestMode='template';
+  document.querySelectorAll('.gm-card').forEach((c,i)=>c.classList.toggle('sel',i===0));
 }
 function applyTheme(){
   const L=S.locked;document.documentElement.style.setProperty('--p',L.color);
@@ -630,7 +641,7 @@ window.flipCam=function(){S.locked.facing=S.locked.facing==='user'?'environment'
 function drawWM(ctx,w,h,t){ctx.save();ctx.font=`500 ${Math.round(h*.026)}px DM Sans,sans-serif`;ctx.fillStyle='rgba(255,255,255,.6)';ctx.textAlign='center';ctx.fillText(t,w/2,h*.968);ctx.restore();}
 
 /* DOTS */
-function buildDots(){const m=MODES.find(x=>x.id===S.activeMode||S.locked.mode),total=m?m.shots:1;const ind=document.getElementById('shots-ind');ind.innerHTML='';if(total<2) return;for(let i=0;i<total;i++){const d=document.createElement('div');d.className='shot-dot';ind.appendChild(d);}}
+function buildDots(){const mode=S.activeMode||S.locked.mode;const m=MODES.find(x=>x.id===mode),total=m?m.shots:1;const ind=document.getElementById('shots-ind');ind.innerHTML='';if(total<2) return;for(let i=0;i<total;i++){const d=document.createElement('div');d.className='shot-dot';ind.appendChild(d);}}
 
 /* FILTERS */
 function applyFx(ctx,w,h){
@@ -649,7 +660,7 @@ function applyFx(ctx,w,h){
 /* SHOOT */
 window.shoot=async function(){
   if(S.shooting) return;S.shooting=true;document.getElementById('shutter').classList.add('off');S.frames=[];
-  const m=MODES.find(x=>x.id===S.locked.mode),total=m?m.shots:1;
+  const m=MODES.find(x=>x.id===(S.activeMode||S.locked.mode)),total=m?m.shots:1;
   const dots=document.querySelectorAll('.shot-dot');
   for(let i=0;i<total;i++){await countdown(S.locked.timer);await captureFrame();if(dots[i]) dots[i].classList.add('done');if(i<total-1) await sleep(360);}
   document.getElementById('shutter').classList.remove('off');S.shooting=false;stopCam();composeAndShowGuest();
@@ -785,7 +796,7 @@ function startAutoReset(secs){
   S.resetInterval=setInterval(()=>{remaining--;document.getElementById('reset-countdown').textContent=remaining;if(remaining<=0){clearAutoReset();resetForNextGuest();}},1000);
 }
 function clearAutoReset(){clearInterval(S.resetInterval);S.resetInterval=null;}
-window.resetForNextGuest=function(){clearAutoReset();S.frames=[];S.finalURL=null;S.guestMode='template';refreshGuestPicker();showScr('s-attract');};
+window.resetForNextGuest=function(){clearAutoReset();S.frames=[];S.finalURL=null;S.guestMode='template';S.activeMode=S.locked.mode;refreshGuestPicker();showScr('s-attract');};
 
 /* GUEST SHARE */
 window.guestToggleShare=function(){document.getElementById('guest-share-tray').classList.toggle('open');};
@@ -878,6 +889,7 @@ function loadEditorBg(cb){
         cvs.style.width=Math.round(ed.canvasW*scale)+'px';
         cvs.style.height=Math.round(ed.canvasH*scale)+'px';
       }
+      // After loading bg, re-run slot detection
       if(cb)cb();
     };
     img.src=S.locked.customBgURL;return;
@@ -885,7 +897,117 @@ function loadEditorBg(cb){
   ed.bgImg=null;ed.bgDef=BUILTIN_BGS.find(b=>b.id===S.locked.bgId)||BUILTIN_BGS[0];
   if(cb)cb();
 }
-function placeDefaultSlots(){const ed=S.ed,cW=ed.canvasW,cH=ed.canvasH;const slots=getLayoutSlots(S.locked.mode,cW,cH);ed.objects=slots.map((sl,i)=>({type:'photo-slot',_frameIndex:i,label:'Photo '+(i+1),x:sl.x,y:sl.y,w:sl.w,h:sl.h,rot:0,flipH:false,flipV:false,zIndex:i+1}));ed.history=[JSON.stringify(ed.objects)];}
+function placeDefaultSlots(){
+  const ed=S.ed,cW=ed.canvasW,cH=ed.canvasH;
+  // If we have a custom PNG overlay, try to auto-detect clear regions first
+  if(ed.bgImg){
+    const detected=detectClearRegions(ed.bgImg,cW,cH,MODES.find(m=>m.id===S.locked.mode)?.shots||1);
+    if(detected&&detected.length>0){
+      ed.objects=detected.map((sl,i)=>({type:'photo-slot',_frameIndex:i,label:'Photo '+(i+1),x:sl.x,y:sl.y,w:sl.w,h:sl.h,rot:0,flipH:false,flipV:false,zIndex:i+1}));
+      ed.history=[JSON.stringify(ed.objects)];
+      return;
+    }
+  }
+  // Fallback to default layout slots
+  const slots=getLayoutSlots(S.locked.mode,cW,cH);
+  ed.objects=slots.map((sl,i)=>({type:'photo-slot',_frameIndex:i,label:'Photo '+(i+1),x:sl.x,y:sl.y,w:sl.w,h:sl.h,rot:0,flipH:false,flipV:false,zIndex:i+1}));
+  ed.history=[JSON.stringify(ed.objects)];
+}
+
+/* ═══════════════════════════════════════════════════════
+   AUTO-DETECT CLEAR REGIONS in a template PNG
+   Works with BOTH:
+   • Transparent PNG holes (alpha < 30) — photo areas cut out of frame
+   • White/light placeholder boxes (r+g+b > 580, alpha > 180)
+   Tries transparent detection first, falls back to bright detection.
+═══════════════════════════════════════════════════════ */
+function detectClearRegions(img, cW, cH, numSlots){
+  const AW=400, AH=Math.round(400*(cH/cW));
+  const ac=document.createElement('canvas'); ac.width=AW; ac.height=AH;
+  const ax=ac.getContext('2d');
+  // Clear to transparent before drawing so we can read alpha accurately
+  ax.clearRect(0,0,AW,AH);
+  ax.drawImage(img,0,0,AW,AH);
+  const px=ax.getImageData(0,0,AW,AH).data;
+
+  // Check how many transparent pixels exist — if significant, use alpha mode
+  let transpCount=0;
+  for(let i=0;i<AW*AH;i++) if(px[i*4+3]<30) transpCount++;
+  const hasTransparency=(transpCount/(AW*AH))>0.05; // >5% transparent
+
+  // Build "clear" map — either transparent holes OR bright white boxes
+  const clear=new Uint8Array(AW*AH);
+  for(let i=0;i<AW*AH;i++){
+    const r=px[i*4],g=px[i*4+1],b=px[i*4+2],a=px[i*4+3];
+    if(hasTransparency){
+      // Transparent pixel = photo hole in PNG frame
+      clear[i]=(a<30)?1:0;
+    } else {
+      // No transparency — look for white/very-light placeholder boxes
+      clear[i]=(a>180&&r+g+b>580)?1:0;
+    }
+  }
+
+  // ── Find rectangular regions using row + column scanning ──────────
+  function findRegions(threshold){
+    const rowFill=new Float32Array(AH);
+    for(let y=0;y<AH;y++){
+      let cnt=0;
+      for(let x=0;x<AW;x++) cnt+=clear[y*AW+x];
+      rowFill[y]=cnt/AW;
+    }
+    const bands=[];
+    let inR=false,sY=0;
+    for(let y=0;y<=AH;y++){
+      const fill=y<AH?rowFill[y]:0;
+      if(!inR&&fill>threshold){inR=true;sY=y;}
+      else if(inR&&(fill<=threshold||y===AH)){
+        if(y-sY>AH*0.04) bands.push({startY:sY,endY:y});
+        inR=false;
+      }
+    }
+    const slots=[];
+    for(const {startY,endY} of bands){
+      const colFill=new Float32Array(AW);
+      for(let x=0;x<AW;x++){
+        let cnt=0;
+        for(let y=startY;y<endY;y++) cnt+=clear[y*AW+x];
+        colFill[x]=cnt/(endY-startY);
+      }
+      let sX=0,eX=AW-1;
+      for(let x=0;x<AW;x++){if(colFill[x]>threshold*0.8){sX=x;break;}}
+      for(let x=AW-1;x>=0;x--){if(colFill[x]>threshold*0.8){eX=x;break;}}
+      const scaleX=cW/AW,scaleY=cH/AH;
+      const pad=Math.round(Math.min(cW,cH)*0.005);
+      slots.push({
+        x:Math.round(sX*scaleX)+pad,
+        y:Math.round(startY*scaleY)+pad,
+        w:Math.round((eX-sX)*scaleX)-pad*2,
+        h:Math.round((endY-startY)*scaleY)-pad*2,
+      });
+    }
+    return slots;
+  }
+
+  // Try progressively looser thresholds until we find enough regions
+  let slots=[];
+  for(const thresh of [0.45,0.30,0.18,0.10]){
+    slots=findRegions(thresh);
+    if(slots.length>=numSlots) break;
+  }
+
+  if(slots.length===0) return null;
+
+  // Take the N largest, then sort spatially
+  slots.sort((a,b)=>(b.w*b.h)-(a.w*a.h));
+  const best=slots.slice(0,numSlots);
+  if(cH>=cW) best.sort((a,b)=>a.y-b.y); // portrait: top→bottom
+  else best.sort((a,b)=>a.x-b.x);        // landscape: left→right
+
+  // Validate minimum size (each slot must be at least 8% of canvas)
+  const valid=best.filter(s=>s.w>cW*0.08&&s.h>cH*0.04);
+  return valid.length>=1 ? valid : null;
+}
 function getLayoutSlots(mode,cW,cH){
   const SQ=1080,LW=1920,LH=1080;
   if(mode==='single') return [{x:0,y:0,w:SQ,h:SQ}];
@@ -971,6 +1093,21 @@ window.fsScaleDown=function(){
   if(S.ed.selected<0){showToast('Select a photo slot first');return;}
   scaleObj(S.ed.objects[S.ed.selected],0.88);renderFS();renderEditor();
 };
+window.edAutoDetect=function(){
+  if(!S.ed.bgImg){showToast('Upload a template image first');return;}
+  const numSlots=MODES.find(m=>m.id===S.locked.mode)?.shots||1;
+  const detected=detectClearRegions(S.ed.bgImg,S.ed.canvasW,S.ed.canvasH,numSlots);
+  if(!detected||detected.length===0){showToast('No clear photo areas found — try Reset and position manually');return;}
+  // Replace only photo-slot objects, keep text/stickers
+  const nonSlots=S.ed.objects.filter(o=>o.type!=='photo-slot');
+  const newSlots=detected.map((sl,i)=>({type:'photo-slot',_frameIndex:i,label:'Photo '+(i+1),x:sl.x,y:sl.y,w:sl.w,h:sl.h,rot:0,flipH:false,flipV:false,zIndex:i+1}));
+  S.ed.objects=[...newSlots,...nonSlots];
+  S.ed.selected=-1;
+  S.ed.history.push(JSON.stringify(S.ed.objects));
+  renderEditor();
+  showToast('Auto-fitted '+detected.length+' photo slot'+(detected.length>1?'s':'')+' ✓');
+};
+window.fsAutoDetect=function(){edAutoDetect();renderFS();};
 window.edUndo=function(){if(S.ed.history.length<=1){S.ed.objects=[];renderEditor();return;}S.ed.history.pop();S.ed.objects=JSON.parse(S.ed.history[S.ed.history.length-1]);S.ed.selected=-1;renderEditor();};
 window.edDelete=function(){if(S.ed.selected<0) return;S.ed.history.push(JSON.stringify(S.ed.objects));S.ed.objects.splice(S.ed.selected,1);S.ed.selected=-1;renderEditor();};
 window.edFlipH=function(){if(S.ed.selected<0) return;S.ed.objects[S.ed.selected].flipH=!S.ed.objects[S.ed.selected].flipH;renderEditor();};
