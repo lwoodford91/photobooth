@@ -1168,11 +1168,15 @@ function renderTplLib(){
   }
   lib.forEach((t,i)=>{
     const isActive=S.savedTemplate&&S.savedTemplate._id===t.id;
+    // Load preview from separate key
+    const prevKey='pb_tpl_prev_'+t.id;
+    let prevSrc='';
+    try{prevSrc=localStorage.getItem(prevKey)||'';}catch(e){}
     const card=document.createElement('div');
     card.className='tpl-lib-card'+(isActive?' active-tpl':'');
     card.innerHTML=`
       ${isActive?'<div class="tpl-lib-active-badge">✓ ACTIVE</div>':''}
-      <img src="${t.preview||''}" alt="${t.name}" loading="lazy"/>
+      <img src="${prevSrc}" alt="${t.name}" loading="lazy" style="background:#1a1a1a"/>
       <div class="tpl-lib-info">
         <div>
           <div class="tpl-lib-name">${t.name}</div>
@@ -1188,29 +1192,65 @@ function renderTplLib(){
 window.saveNamedTemplate=function(){
   const nameEl=document.getElementById('tpl-save-name');
   const name=(nameEl?nameEl.value.trim():'')||('Template '+(getTplLib().length+1));
-  const preview=S.ed.canvas?S.ed.canvas.toDataURL('image/jpeg',.5):'';
+
+  // Preview thumbnail — store at tiny size (200px wide) to keep localStorage small
+  let preview='';
+  if(S.ed.canvas){
+    const pc=document.createElement('canvas');
+    const scale=200/S.ed.canvasW;
+    pc.width=200;pc.height=Math.round(S.ed.canvasH*scale);
+    pc.getContext('2d').drawImage(S.ed.canvas,0,0,pc.width,pc.height);
+    preview=pc.toDataURL('image/jpeg',.4);
+  }
+
+  // Store preview separately to keep lib lean
+  const tplId='tpl_'+Date.now();
+  try{localStorage.setItem('pb_tpl_prev_'+tplId, preview);}catch(e){}
+
   const tpl={
-    id:'tpl_'+Date.now(),
+    id:tplId,
     name,
     mode:S.locked.mode,
     canvasW:S.ed.canvasW,
     canvasH:S.ed.canvasH,
     bgId:S.locked.bgId,
-    customBgURL:S.locked.customBgURL||null,
+    // Store bg reference only — NOT the full base64 (already saved in pb_bgs)
+    hasBgImg:!!(S.locked.customBgURL&&S.locked.bgId.startsWith('custom-')),
     objects:S.ed.objects.map(o=>({...o,img:undefined})),
-    preview,
     savedAt:Date.now(),
   };
+
   const lib=getTplLib();
   lib.unshift(tpl);
-  setTplLib(lib);
-  // Also set as active template
-  S.savedTemplate={...tpl,_id:tpl.id};
+
+  // Try saving; if quota exceeded, remove oldest entries until it fits
+  let saved=false;
+  for(let attempts=0;attempts<lib.length&&!saved;attempts++){
+    try{
+      localStorage.setItem('pb_tpl_lib',JSON.stringify(lib));
+      saved=true;
+    }catch(e){
+      // Remove oldest template's preview and entry
+      const oldest=lib.pop();
+      if(oldest) try{localStorage.removeItem('pb_tpl_prev_'+oldest.id);}catch(ex){}
+    }
+  }
+  if(!saved){showToast('Could not save — storage full');return;}
+
+  // Set as active (restore full bgURL from pb_bgs for runtime use)
+  const activeTpl={...tpl,_id:tplId};
+  if(tpl.hasBgImg) activeTpl.customBgURL=S.locked.customBgURL;
+  S.savedTemplate=activeTpl;
   S.savedTemplateURL=preview;
-  saveState();
+
+  // saveState stores active template — also strip its customBgURL to save space
+  const saveable={...activeTpl};delete saveable.customBgURL;
+  try{localStorage.setItem('pb_tpl',JSON.stringify(saveable));}catch(e){}
+  try{localStorage.setItem('pb_locked',JSON.stringify(S.locked));}catch(e){}
+
   if(nameEl) nameEl.value='';
   renderTplLib();
-  showToast('Template "'+name+'" saved ✓');
+  showToast('"'+name+'" saved ✓');
 };
 
 // Keep old saveTemplate as alias for fullscreen save button
@@ -1219,21 +1259,29 @@ window.saveTemplate=window.saveNamedTemplate;
 window.loadTpl=function(id){
   const lib=getTplLib();
   const tpl=lib.find(t=>t.id===id);if(!tpl) return;
-  // Load template into editor
   S.locked.mode=tpl.mode||S.locked.mode;
   document.getElementById('a-mode').value=S.locked.mode;
-  if(tpl.customBgURL){S.locked.customBgURL=tpl.customBgURL;S.locked.bgId='custom-0';}
-  else{S.locked.bgId=tpl.bgId||'solid-black';S.locked.customBgURL=null;}
-  // Reinit editor with saved dimensions and objects
+  // Restore bg: if it had a custom image, pull it back from pb_bgs
+  if(tpl.hasBgImg){
+    const bgs=getSavedBgs();
+    const bgUrl=bgs[0]||null; // most recent custom bg
+    S.locked.customBgURL=bgUrl;
+    S.locked.bgId=bgUrl?'custom-0':'solid-black';
+  } else {
+    S.locked.bgId=tpl.bgId||'solid-black';
+    S.locked.customBgURL=null;
+  }
   S.ed.canvasW=tpl.canvasW||1080;S.ed.canvasH=tpl.canvasH||1080;
-  // Set as active template for guests
-  S.savedTemplate={...tpl,_id:tpl.id};
-  S.savedTemplateURL=tpl.preview||'';
+  // Set as active template for guests (restore customBgURL for runtime)
+  const activeTpl={...tpl,_id:tpl.id,customBgURL:S.locked.customBgURL};
+  S.savedTemplate=activeTpl;
+  // Load preview
+  let prevSrc='';
+  try{prevSrc=localStorage.getItem('pb_tpl_prev_'+id)||'';}catch(e){}
+  S.savedTemplateURL=prevSrc;
   saveState();
   buildAdminSlotsBar();
-  // Reinit the editor canvas
   initTemplateEditor(()=>{
-    // After init, restore objects
     S.ed.objects=tpl.objects.map(o=>({...o}));
     S.ed.history=[JSON.stringify(S.ed.objects)];
     renderEditor();
@@ -1246,10 +1294,11 @@ window.deleteTpl=function(id){
   if(!confirm('Delete this template?')) return;
   const lib=getTplLib().filter(t=>t.id!==id);
   setTplLib(lib);
-  // If deleted template was active, clear active
+  try{localStorage.removeItem('pb_tpl_prev_'+id);}catch(e){}
   if(S.savedTemplate&&S.savedTemplate._id===id){
     S.savedTemplate=null;S.savedTemplateURL=null;
-    saveState();
+    try{localStorage.removeItem('pb_tpl');}catch(e){}
+    try{localStorage.removeItem('pb_tpl_prev');}catch(e){}
   }
   renderTplLib();
   showToast('Template deleted');
