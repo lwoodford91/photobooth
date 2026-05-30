@@ -135,6 +135,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 #tpl-ed-canvas{max-width:100%;max-height:340px;display:block;touch-action:none;border-radius:8px}
 .tpl-ed-toolbar{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
 .ed-tool{background:var(--card);border:1px solid var(--border2);color:var(--txt);padding:8px 13px;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px;transition:background .15s}
+.ed-tool.scale-btn{border-color:rgba(245,197,24,.4);background:rgba(245,197,24,.08);color:var(--gold)}
 .ed-tool:active{background:rgba(255,255,255,.1)}
 .t-ico{font-size:15px}
 .photo-slots-bar{display:flex;gap:8px;padding:10px 0 4px;overflow-x:auto;scrollbar-width:none;align-items:center}
@@ -313,6 +314,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
       <div class="tpl-ed-toolbar">
         <button class="ed-tool" onclick="edUndo()"><span class="t-ico">↩</span>Undo</button>
         <button class="ed-tool" onclick="edDelete()"><span class="t-ico">🗑</span>Remove</button>
+        <button class="ed-tool scale-btn" onclick="edScaleUp()"><span class="t-ico">➕</span>Scale +</button>
+        <button class="ed-tool scale-btn" onclick="edScaleDown()"><span class="t-ico">➖</span>Scale −</button>
         <button class="ed-tool" onclick="edFlipH()"><span class="t-ico">↔</span>Flip H</button>
         <button class="ed-tool" onclick="edFlipV()"><span class="t-ico">↕</span>Flip V</button>
         <button class="ed-tool" onclick="edBringFront()"><span class="t-ico">⬆</span>Front</button>
@@ -398,6 +401,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   <div class="tpl-fs-toolbar">
     <button class="ed-tool" onclick="fsUndo()"><span class="t-ico">↩</span>Undo</button>
     <button class="ed-tool" onclick="fsDelete()"><span class="t-ico">🗑</span>Remove</button>
+    <button class="ed-tool scale-btn" onclick="fsScaleUp()"><span class="t-ico">➕</span>Scale +</button>
+    <button class="ed-tool scale-btn" onclick="fsScaleDown()"><span class="t-ico">➖</span>Scale −</button>
     <button class="ed-tool" onclick="fsFlipH()"><span class="t-ico">↔</span>Flip H</button>
     <button class="ed-tool" onclick="fsFlipV()"><span class="t-ico">↕</span>Flip V</button>
     <button class="ed-tool" onclick="fsFront()"><span class="t-ico">⬆</span>Front</button>
@@ -891,6 +896,33 @@ function edMouseUp(){_m.down=false;}
 
 /* editor toolbar */
 function buildAdminSlotsBar(){const bar=document.getElementById('admin-slots-bar');if(!bar) return;bar.innerHTML='<span style="font-size:11px;color:rgba(245,240,235,.35);white-space:nowrap;flex-shrink:0;font-weight:500">Slots:</span>';const m=MODES.find(x=>x.id===S.locked.mode)||MODES[0];for(let i=0;i<m.shots;i++){const sl=document.createElement('div');sl.className='pslot';sl.innerHTML='<span style="font-size:11px;color:rgba(245,240,235,.4)">P'+(i+1)+'</span>';sl.onclick=()=>{const obj=S.ed.objects.find(o=>o.type==='photo-slot'&&o._frameIndex===i);if(obj){S.ed.selected=S.ed.objects.indexOf(obj);renderEditor();}};bar.appendChild(sl);}}
+/* SCALE helpers */
+function scaleObj(obj, factor){
+  if(!obj) return;
+  const cx=obj.x+obj.w/2, cy=obj.y+obj.h/2;
+  obj.w=Math.max(40, Math.round(obj.w*factor));
+  obj.h=Math.max(40, Math.round(obj.h*factor));
+  // Keep centred on same point
+  obj.x=cx-obj.w/2;
+  obj.y=cy-obj.h/2;
+  S.ed.history.push(JSON.stringify(S.ed.objects));
+}
+window.edScaleUp=function(){
+  if(S.ed.selected<0){showToast('Select a photo slot first');return;}
+  scaleObj(S.ed.objects[S.ed.selected],1.12);renderEditor();
+};
+window.edScaleDown=function(){
+  if(S.ed.selected<0){showToast('Select a photo slot first');return;}
+  scaleObj(S.ed.objects[S.ed.selected],0.88);renderEditor();
+};
+window.fsScaleUp=function(){
+  if(S.ed.selected<0){showToast('Select a photo slot first');return;}
+  scaleObj(S.ed.objects[S.ed.selected],1.12);renderFS();renderEditor();
+};
+window.fsScaleDown=function(){
+  if(S.ed.selected<0){showToast('Select a photo slot first');return;}
+  scaleObj(S.ed.objects[S.ed.selected],0.88);renderFS();renderEditor();
+};
 window.edUndo=function(){if(S.ed.history.length<=1){S.ed.objects=[];renderEditor();return;}S.ed.history.pop();S.ed.objects=JSON.parse(S.ed.history[S.ed.history.length-1]);S.ed.selected=-1;renderEditor();};
 window.edDelete=function(){if(S.ed.selected<0) return;S.ed.history.push(JSON.stringify(S.ed.objects));S.ed.objects.splice(S.ed.selected,1);S.ed.selected=-1;renderEditor();};
 window.edFlipH=function(){if(S.ed.selected<0) return;S.ed.objects[S.ed.selected].flipH=!S.ed.objects[S.ed.selected].flipH;renderEditor();};
